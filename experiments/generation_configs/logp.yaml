@@ -1,0 +1,10 @@
+model_path: './pretrained_model/ZINC/logp/checkpoint/best.tar'
+library_path: './data/ZINC/library.csv'
+library_builtin_model_path: './builtin_model/zinc_logp.tar'
+
+# Required
+n_library_sample: 2000
+alpha: 0.75
+max_iteration: 10
+idx_masking: True
+compose_force: False

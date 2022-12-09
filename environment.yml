@@ -1,0 +1,14 @@
+name: bbar 
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+    - numpy>=1.23
+    - tqdm>=4.64
+    - rdkit-pypi>=2022.3.5
+    - tensorboard>=2.11
+    - pandas==1.5.1
+    - parmap==1.6.0

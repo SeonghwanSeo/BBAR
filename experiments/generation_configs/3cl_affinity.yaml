@@ -1,0 +1,10 @@
+model_path: './pretrained_model/3cl_docking/affinity/checkpoint/best.tar'
+library_path: './data/ZINC/library.csv'
+library_builtin_model_path: './builtin_model/3cl_docking.tar'
+
+# Required
+n_library_sample: 500
+alpha: 2.00
+max_iteration: 10
+idx_masking: True
+compose_force: False
