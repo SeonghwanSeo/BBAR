@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 
 from typing import Tuple, Dict, OrderedDict, Union
-from torch import FloatTensor
+from torch import FloatTensor, LongTensor
 from torch_geometric.data import Data as PyGData, Batch as PyGBatch
 from bbar.utils.typing import NodeVector, EdgeVector, GraphVector, GlobalVector
 
-from .layers import GraphEmbedding, TerminationPredictionModel, BlockSelectionModel, AtomSelectionModel
+from .layers import GraphEmbeddingModel, ConditionEmbeddingModel, \
+        TerminationPredictionModel, BlockSelectionModel, AtomSelectionModel
 from bbar.transform import NUM_ATOM_FEATURES, NUM_BOND_FEATURES, NUM_BLOCK_FEATURES
 
 class BlockConnectionPredictor(nn.Module) :
@@ -20,11 +21,15 @@ class BlockConnectionPredictor(nn.Module) :
         self.condition_dim = len(property_information)
 
         # Graph Embedding
-        self.core_graph_embedding_model = GraphEmbedding(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
-                                            0 + self.condition_dim, **cfg.GraphEmbedding_Core)
+        self.core_graph_embedding_model = GraphEmbeddingModel(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
+                                            0, **cfg.GraphEmbeddingModel_Core)
 
-        self.block_graph_embedding_model = GraphEmbedding(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
-                                            NUM_BLOCK_FEATURES, **cfg.GraphEmbedding_Block)
+        self.block_graph_embedding_model = GraphEmbeddingModel(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
+                                            NUM_BLOCK_FEATURES, **cfg.GraphEmbeddingModel_Block)
+
+        # Condition Embedding
+        self.condition_embedding_model = ConditionEmbeddingModel(condition_dim = self.condition_dim, \
+                                            **cfg.ConditionEmbeddingModel)
 
         # Terminate Prediction
         self.termination_prediction_model = TerminationPredictionModel(**cfg.TerminationPredictionModel)
@@ -59,23 +64,14 @@ class BlockConnectionPredictor(nn.Module) :
     def core_molecule_embedding(
         self,
         batch: Union[PyGData, PyGBatch],
-        condition: Dict[str, Union[float, FloatTensor]]
     ) -> Tuple[NodeVector, GraphVector]:
         """
         Input:
             batch: PyGData or PyGBatch. (Transform by CoreGraphTransform) 
-            condition: Target condition value           (N, Fc)
-
         Output:
             x_upd_core: Updated Node Vector             (V_core, Fh_core)
             Z_core: Graph Vector                        (N, Fz_core)
         """
-        condition = self._standardize_condition(condition, device=batch.x.device)
-        if batch.get('global_x', None) is not None :
-            batch.global_x = torch.cat([batch.global_x, condition], dim=-1)
-        else :
-            batch.global_x = condition 
-
         return self.core_graph_embedding_model.forward_batch(batch)
 
     def building_block_embedding(
@@ -86,11 +82,35 @@ class BlockConnectionPredictor(nn.Module) :
         Input:
             batch: PyGData or PyGBatch. (Transform by BlockGraphTransform) 
         Output: 
-            x_upd_block: Updated Node Vector            (V_block, Fh_block)   # Unused
-            Z_block: Graph Vector                       (N, Fz_block)   # Used
+            x_upd_block: Updated Node Vector            (V_block, Fh_block)     # Unused
+            Z_block: Graph Vector                       (N, Fz_block)           # Used
         """
         return self.block_graph_embedding_model.forward_batch(batch)
     
+    def condition_embedding(
+        self,
+        x_upd_core: NodeVector,
+        Z_core: GraphVector,
+        condition: Dict[str, Union[float, FloatTensor]],
+        node2graph_core: LongTensor,
+        condition_noise: float = 0.0,
+    ) -> Tuple[NodeVector, GraphVector]:
+        """
+        Input:
+            x_upd_core: Updated Node Vector             (V_core, Fh_core)
+            Z_core: Graph Vector                        (N, Fz_core)
+            condition: Condition                        {property_key: property_value}
+
+        Output:
+            x_upd_core: Updated Node Vector             (V_core, Fh_core)
+            Z_core: Graph Vector                        (N, Fz_core)
+        """
+        condition_vector = self._standardize_condition(condition)   # (N, F_condition)
+        if condition_noise > 0 :
+            noise = torch.randn_like(condition) * condition_noise
+            condition_vector += noise
+        return self.condition_embedding_model(x_upd_core, Z_core, condition_vector, node2graph_core)
+
     def get_termination_logit(self, Z_core: GraphVector) -> FloatTensor:
         """
         Input:
@@ -135,7 +155,7 @@ class BlockConnectionPredictor(nn.Module) :
         Output:
             P_atom: Probability Distribution of Atoms   (V_core, )
         """
-        input_x_core, edge_index_core, edge_attr_core = \
+        x_inp_core, edge_index_core, edge_attr_core = \
                 batch_core.x, batch_core.edge_index, batch_core.edge_attr
         if isinstance(batch_core, PyGBatch) :
             node2graph_core = batch_core.batch
@@ -143,7 +163,7 @@ class BlockConnectionPredictor(nn.Module) :
             node2graph_core = None
 
         return self.atom_selection_model(
-            x_upd_core, edge_index_core, edge_attr_core, input_x_core,
+            x_inp_core, edge_index_core, edge_attr_core, x_upd_core, 
             Z_core, Z_block, node2graph_core
         )
 
@@ -154,7 +174,7 @@ class BlockConnectionPredictor(nn.Module) :
         Z_core: GraphVector,
         Z_block: GraphVector,
         ) -> FloatTensor:
-        input_x_core, edge_index_core, edge_attr_core = \
+        x_inp_core, edge_index_core, edge_attr_core = \
                 batch_core.x, batch_core.edge_index, batch_core.edge_attr
         if isinstance(batch_core, PyGBatch) :
             node2graph_core = batch_core.batch
@@ -162,8 +182,8 @@ class BlockConnectionPredictor(nn.Module) :
             node2graph_core = None
 
         return self.atom_selection_model(
-            x_upd_core, edge_index_core, edge_attr_core, input_x_core,
-            Z_core, Z_block, node2graph_core, return_logit = True
+            x_inp_core, edge_index_core, edge_attr_core, x_upd_core, 
+            Z_core, Z_block, node2graph_core, return_logit=True
         )
 
     def initialize_parameter(self) :

@@ -29,6 +29,7 @@ class Train_ArgParser(argparse.ArgumentParser) :
         hparams_args.add_argument('--val_batch_size', type=int, default=512)
         hparams_args.add_argument('--num_negative_samples', type=int, default=10)
         hparams_args.add_argument('--num_validate', type=int, default=5)
+        hparams_args.add_argument('--condition_noise', type=float, default=0.0)
         hparams_args.add_argument('--alpha', type=float, default=0.75)
 
         # Training Config

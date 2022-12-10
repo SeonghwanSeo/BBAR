@@ -7,14 +7,15 @@ from torch_geometric.typing import Adj
 from torch_scatter.composite import scatter_softmax
 
 from . import block
-from .graph_embedding import GraphEmbedding
+from .graph_embedding import GraphEmbeddingModel
 
 class AtomSelectionModel(nn.Module) :
     def __init__(
         self,
-        core_node_input_dim: int,
+        core_node_input_dim: int,           # h_core_input
         core_edge_input_dim: int,
-        core_graph_vector_dim: int = 128,
+        core_node_vector_dim: int = 128,    # h_core_upd
+        core_graph_vector_dim: int = 128,   # Z_core
         block_graph_vector_dim: int = 128,
         hidden_dim: int = 128,
         n_layer: int = 4,
@@ -23,7 +24,7 @@ class AtomSelectionModel(nn.Module) :
 
         super(AtomSelectionModel, self).__init__()    
 
-        self.graph_embedding = GraphEmbedding(
+        self.graph_embedding = GraphEmbeddingModel(
             node_input_dim = hidden_dim,
             edge_input_dim = core_edge_input_dim,
             global_input_dim = core_graph_vector_dim + block_graph_vector_dim,
@@ -35,7 +36,7 @@ class AtomSelectionModel(nn.Module) :
 
         self.mlp = nn.Sequential(
             block.Linear(
-                input_dim = core_node_input_dim + hidden_dim,
+                input_dim = core_node_input_dim + core_node_vector_dim,
                 output_dim = hidden_dim,
                 activation = 'relu',
                 dropout = dropout
@@ -50,10 +51,10 @@ class AtomSelectionModel(nn.Module) :
 
     def forward(
         self,
-        x_upd_core: FloatTensor,
+        x_inp_core: FloatTensor,
         edge_index_core: Adj,
         edge_attr_core: FloatTensor,
-        x_inp_core: FloatTensor,
+        x_upd_core: FloatTensor,
         Z_core: FloatTensor,
         Z_block: FloatTensor,
         node2graph_core: Optional[LongTensor] = None,

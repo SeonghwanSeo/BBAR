@@ -1,4 +1,5 @@
-from .graph_embedding import GraphEmbedding
+from .graph_embedding import GraphEmbeddingModel
 from .termination_prediction import TerminationPredictionModel
 from .block_selection import BlockSelectionModel
 from .atom_selection import AtomSelectionModel
+from .condition_embedding import ConditionEmbeddingModel

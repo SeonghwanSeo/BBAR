@@ -53,6 +53,7 @@ class Trainer() :
         self.num_negative_samples = args.num_negative_samples
         self.num_validate = args.num_validate
         self.alpha = args.alpha
+        self.condition_noise = args.condition_noise
 
         self.num_workers = args.num_workers
         self.train_batch_size = args.train_batch_size
@@ -116,7 +117,7 @@ class Trainer() :
         def construct_dataset(dataframe, data_pkl, index) :
             indexed_df = dataframe.loc[index]
             indexed_data = indexed_df.values.tolist()
-            molecules = [convert_to_SMILES(row[0], isomericSmiles=False) for row in indexed_data]
+            molecules = [row[0] for row in indexed_data]
             properties = [{key: val for key, val in zip(args.property, row[1:])}
                         for row in indexed_data]
             fragmented_molecules = [data_pkl[idx] for idx in index] if data_pkl is not None else None
@@ -251,9 +252,16 @@ class Trainer() :
         pygbatch_core, condition = self.to_device(pygbatch_core, condition)
         y_term, y_block, y_atom = pygbatch_core['y_term'], pygbatch_core['y_block'], pygbatch_core['y_atom']
         y_add = torch.logical_not(y_term)
+        node2graph_core = pygbatch_core.batch
         
+        # Graph Embedding
+        x_upd_core, Z_core = self.model.core_molecule_embedding(pygbatch_core)
+
+        # Condition Embedding
+        x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, condition, node2graph_core,
+                                                            self.condition_noise)
+
         # Termination Prediction
-        x_upd_core, Z_core = self.model.core_molecule_embedding(pygbatch_core, condition)
         logit_term = self.model.get_termination_logit(Z_core)               # (N,)
         
         loss_term = bce_with_logit_loss(logit_term, y_term.float())
