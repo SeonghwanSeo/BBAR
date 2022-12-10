@@ -3,14 +3,12 @@ GraphEmbeddingModel_Core:
   graph_vector_dim: 256
   n_layer: 4
   dropout: 0.0
-  norm: 'node_vector(graph),graph_vector'
 
 GraphEmbeddingModel_Block:
   hidden_dim: 256
   graph_vector_dim: 256
   n_layer: 4
   dropout: 0.0
-  norm: 'node_vector(graph),graph_vector'
 
 ConditionEmbeddingModel:
   core_node_vector_dim: ${GraphEmbeddingModel_Core.hidden_dim}

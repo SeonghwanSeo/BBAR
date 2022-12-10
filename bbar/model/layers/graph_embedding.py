@@ -19,7 +19,6 @@ class GraphEmbeddingModel(nn.Module):
         hidden_dim: int = 128,
         graph_vector_dim: Optional[int] = 0, 
         n_layer: int = 4, 
-        norm: str = None,
         dropout: float = 0.0,
     ) :
         super(GraphEmbeddingModel, self).__init__()
@@ -43,13 +42,7 @@ class GraphEmbeddingModel(nn.Module):
                                                             activation = 'SiLU')
             for _ in range(n_layer)
         ])
-        norm = '' if norm is None else norm
-        if 'node_vector(graph)' in norm :
-            self.node_vector_norm = pyg_nn.LayerNorm(in_channels=hidden_dim, mode='graph')
-        elif 'node_vector(node)' in norm :
-            self.node_vector_norm = pyg_nn.LayerNorm(in_channels=hidden_dim, mode='node')
-        else :
-            self.node_vector_norm = None 
+        self.node_vector_norm = pyg_nn.LayerNorm(in_channels=hidden_dim, mode='graph')
 
         if graph_vector_dim > 0 :
             self.readout = block.Readout(
@@ -59,10 +52,7 @@ class GraphEmbeddingModel(nn.Module):
                 global_input_dim = global_input_dim,
                 dropout = dropout
             )
-            if 'graph_vector' in norm :
-                self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
-            else :
-                self.graph_vector_norm = None 
+            self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
         else :
             self.readout = None 
 
@@ -96,14 +86,12 @@ class GraphEmbeddingModel(nn.Module):
 
         for conv in self.convs :
             x_emb_upd = conv(x_emb, edge_index, edge_attr = edge_attr)
-            if self.node_vector_norm is not None :
-                x_emb_upd = self.node_vector_norm(x_emb, node2graph)
+            x_emb_upd = self.node_vector_norm(x_emb, node2graph)
             x_emb = x_emb + x_emb_upd
 
         if self.readout is not None :
             Z = self.readout(x_emb, node2graph, global_x)
-            if self.graph_vector_norm is not None :
-                Z = self.graph_vector_norm(Z)
+            Z = self.graph_vector_norm(Z)
         else :
             Z = None
 

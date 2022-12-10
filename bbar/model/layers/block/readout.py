@@ -31,7 +31,7 @@ class Readout(nn.Module) :
         self.linear1 = fc.Linear(node_dim, hidden_dim, bias = False, dropout = dropout)
 
         self.linear2 = fc.Linear(node_dim, hidden_dim, activation = 'Sigmoid', dropout = dropout)
-        self.linear3 = fc.Linear(hidden_dim*3 + global_input_dim, output_dim, activation, dropout = dropout)
+        self.linear3 = fc.Linear(hidden_dim*2 + global_input_dim, output_dim, activation, dropout = dropout)
 
     def forward(self, x: FloatTensor, node2graph: Optional[LongTensor] = None,
                             global_x: Optional[FloatTensor] = None) -> FloatTensor:
@@ -44,13 +44,11 @@ class Readout(nn.Module) :
         if node2graph is not None :
             Z1 = scatter_sum(x, node2graph, dim=0)          # V, Fh -> N, Fz
             Z2 = scatter_mean(x, node2graph, dim=0)         # V, Fh -> N, Fz
-            Z3 = scatter_max(x, node2graph, dim=0)[1]       # V, Fh -> N, Fz
         else :  # when N = 1
             Z1 = x.sum(dim=0, keepdim = True)               # V, Fh -> 1, Fz       
             Z2 = x.mean(dim=0, keepdim = True)              # V, Fh -> 1, Fz       
-            Z3 = x.max(dim=0, keepdim = True)[1]            # V, Fh -> 1, Fz
         if global_x is not None :
-            Z = torch.cat([Z1, Z2, Z3, global_x], dim=-1)   # N, 3*Fh + F_cond
+            Z = torch.cat([Z1, Z2, global_x], dim=-1)       # N, 2*Fh + F_cond
         else :
-            Z = torch.cat([Z1, Z2, Z3], dim=-1)             # N, 3*Fh
-        return self.linear3(Z)                              # N, 3*Fh + F_cond -> N, Fh
+            Z = torch.cat([Z1, Z2], dim=-1)                 # N, 2*Fh
+        return self.linear3(Z)                              # N, 2*Fh + F_cond -> N, Fh

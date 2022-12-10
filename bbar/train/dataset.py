@@ -2,13 +2,14 @@ from rdkit import Chem
 
 import torch
 import numpy as np
-from torch import BoolTensor
 from torch.utils.data import Dataset
 
 from tqdm import tqdm
 import parmap
 
 from typing import Optional, List, Dict, Union, Tuple
+from torch import BoolTensor, FloatTensor
+from torch_geometric.data import Data as PyGData
 from rdkit.Chem import Mol
 from bbar.utils.typing import SMILES
 
@@ -21,18 +22,24 @@ class BBARDataset(Dataset) :
         fragmented_molecules: Optional[List[BRICS_FragmentedGraph]],
         properties: List[Dict[str, float]],
         library: BRICS_BlockLibrary,
-        cache_ratio: float = 0.0,
+        library_pygdata_list: List[PyGData],
+        library_frequency: FloatTensor,
+        num_negative_samples: int,
+        train: bool,
     ) :
         super(BBARDataset, self).__init__()
         
         assert len(molecules) == len(properties)
-        assert cache_ratio >= 0.0 and cache_ratio <= 1.0
 
         self.molecules = molecules
         self.properties = properties
         self.library = library
+        self.library_pygdata = library_pygdata_list
+        self.library_frequency = library_frequency
+        self.num_negative_samples = num_negative_samples
+        self.train = train
+
         self.core_transform = CoreGraphTransform.call 
-        self.cache_ratio = cache_ratio
 
         if fragmented_molecules is None :
             fragmentation: BRICS_Fragmentation = self.library.fragmentation
@@ -40,10 +47,6 @@ class BBARDataset(Dataset) :
         else :
             assert len(molecules) == len(fragmented_molecules)
             self.fragmented_molecules = fragmented_molecules 
-        self.datapoints: List[[Tuple[Mol, int, int]]] = None 
-        """
-        datapoint: Tuple[ RDMol-Core, LibraryIndex-Block, AtomIdx-Core ]
-        """
 
     def __len__(self) -> int:
         return len(self.fragmented_molecules)
@@ -52,8 +55,7 @@ class BBARDataset(Dataset) :
         # Load Datapoint
         fragmented_mol = self.fragmented_molecules[idx]
         core_rdmol, block_idx, core_atom_idx = self.get_datapoint(fragmented_mol)
-
-        pygdata = self.core_transform(core_rdmol)
+        pygdata_core = self.core_transform(core_rdmol)
 
         # Load Condition
         condition: Dict[str, float] = self.properties[idx]
@@ -62,18 +64,35 @@ class BBARDataset(Dataset) :
         num_core_atoms = core_rdmol.GetNumAtoms()
         if block_idx == None :
             y_term: bool = True
-            y_block: int = 0            # Dummy value. Masked during Training.
             y_atom: BoolTensor = torch.full((num_core_atoms,), False, dtype=torch.bool)
         else :
             y_term: bool = False
-            y_block: int = block_idx 
             y_atom: BoolTensor = torch.full((num_core_atoms,), False, dtype=torch.bool)
             y_atom[core_atom_idx] = True
 
-        pygdata.y_term = y_term
-        pygdata.y_block = y_block
-        pygdata.y_atom = y_atom
-        return pygdata, condition
+        pygdata_core.y_term = y_term
+        pygdata_core.y_atom = y_atom
+
+        if self.train :
+            pos_pygdata: PyGData = None
+            neg_pygdatas: List[PyGData] = None
+            if block_idx == None :
+                pos_pygdata = self.library_pygdata[0]
+                neg_pygdatas = [self.library_pygdata[0]] * self.num_negative_samples
+            else :
+                pos_pygdata = self.library_pygdata[block_idx]
+                neg_idxs = self.get_negative_samples(block_idx)
+                neg_pygdatas = [self.library_pygdata[idx] for idx in neg_idxs]
+            return pygdata_core, condition, pos_pygdata, *neg_pygdatas
+        else :
+            if block_idx == None :
+                pos_idx = 0
+                neg_idxs = [0] * self.num_negative_samples
+            else :
+                pos_idx = block_idx
+                neg_idxs = self.get_negative_samples(block_idx)
+            return pygdata_core, condition, pos_idx, *neg_idxs 
+
 
     def get_datapoint(self, fragmented_mol) :
         datapoint = fragmented_mol.get_datapoint()
@@ -83,4 +102,11 @@ class BBARDataset(Dataset) :
             datapoint = (core_rdmol, block_idx, core_atom_idx)
         else :
             datapoint = (core_rdmol, None, None)
+
         return datapoint
+
+    def get_negative_samples(self, positive_sample: int) -> List[int]:
+        freq = torch.clone(self.library_frequency)
+        freq[positive_sample] = 0.0
+        neg_idxs = torch.multinomial(freq, self.num_negative_samples, True).tolist()
+        return neg_idxs

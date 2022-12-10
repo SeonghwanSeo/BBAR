@@ -42,7 +42,6 @@ class Trainer() :
         self.setup_model(args)
 
         # Variable for Training
-        self.frequency_batch = self.frequency_distribution.repeat(self.train_batch_size, 1)
         self.Z_library = None
 
     def setup_trainer(self, args) :
@@ -75,9 +74,9 @@ class Trainer() :
     def setup_library(self, args) :
         logging.info('Setup Library')
         self.library = library = BRICS_BlockLibrary(args.library_path, use_frequency=True)
+        self.library_frequency = self.library.frequency_distribution ** args.alpha
         self.library_pygdata_list = [BlockGraphTransform.call(mol) for mol in library]
-        self.library_pygbatch = PyGBatch.from_data_list(self.library_pygdata_list).to(self.device)
-        self.frequency_distribution = self.library.frequency_distribution.to(self.device) ** args.alpha
+        self.library_pygbatch = PyGBatch.from_data_list(self.library_pygdata_list)
 
     def setup_data(self, args) :
         logging.info('Setup Data')
@@ -89,16 +88,10 @@ class Trainer() :
         1                 COCC[C@@H](C)C(=O)N(C)Cc1ccc(O)cc1  251.15  49.77  2.02320  0.84121
         2  C=CCn1c(S[C@H](C)c2nc3sc(C)c(C)c3c(=O)[nH]2)nn...  387.12  76.46  4.10964  0.50871
         ...
-
-        >>> dataframe.loc[[0,1]]
-                                                      SMILES      mw   tpsa     logp      qed
-        0  CCCCCCC1=NN2C(=N)/C(=C\c3cc(C)n(-c4ccc(C)cc4C)...  461.22  73.81  6.30055  0.38828
-        1                 COCC[C@@H](C)C(=O)N(C)Cc1ccc(O)cc1  251.15  49.77  2.02320  0.84121
-
         >>> dataframe.loc[[0,1]].values.tolist()
         [
-            [CCCCCCC1=NN2C(=N)/C(=C\c3cc(C)n(-c4ccc(C)cc4C)..., 461.22, 73.81, 6.30055, 0.38828],
-            [COCC[C@@H](C)C(=O)N(C)Cc1ccc(O)cc1, 251.15, 49.77, 2.02320, 0.84121],
+          [CCCCCCC1=NN2C(=N)/C(=C\c3cc(C)n(-c4ccc(C)cc4C)..., 461.22, 73.81, 6.30055, 0.38828],
+          [COCC[C@@H](C)C(=O)N(C)Cc1ccc(O)cc1, 251.15, 49.77, 2.02320, 0.84121],
         ]
         """
         data_pkl = None
@@ -114,17 +107,20 @@ class Trainer() :
         val_index = [int(idx) for label, idx in split_index if label == 'val']
 
         # Setup Dataset
-        def construct_dataset(dataframe, data_pkl, index) :
+        def construct_dataset(dataframe, data_pkl, index, train: bool) :
             indexed_df = dataframe.loc[index]
             indexed_data = indexed_df.values.tolist()
             molecules = [row[0] for row in indexed_data]
             properties = [{key: val for key, val in zip(args.property, row[1:])}
                         for row in indexed_data]
             fragmented_molecules = [data_pkl[idx] for idx in index] if data_pkl is not None else None
-            return BBARDataset(molecules, fragmented_molecules, properties, self.library)
+            return BBARDataset(molecules, fragmented_molecules, properties, 
+                    self.library, self.library_pygdata_list, self.library_frequency, self.num_negative_samples, 
+                    train
+            )
 
-        self.train_dataset = construct_dataset(dataframe, data_pkl, train_index)
-        self.val_dataset = construct_dataset(dataframe, data_pkl, val_index)
+        self.train_dataset = construct_dataset(dataframe, data_pkl, train_index, train = True)
+        self.val_dataset = construct_dataset(dataframe, data_pkl, val_index, train = False)
 
         # Setup Dataloader
         self.train_dataloader = PyGDataLoader(self.train_dataset, args.train_batch_size, \
@@ -196,7 +192,7 @@ class Trainer() :
     @torch.no_grad()
     def validate(self) :
         self.model.eval()
-        batch_library = self.library_pygbatch
+        batch_library = self.library_pygbatch.to(self.device)
         _, self.Z_library = self.model.building_block_embedding(batch_library)
 
         metrics_storage = self.get_metrics_storage()
@@ -210,6 +206,7 @@ class Trainer() :
         self.print_metrics(metrics, 'VAL  ')
 
         self.Z_library = None
+        self.library_pygbatch.to('cpu')
         self.model.train()
 
         if loss < self.min_loss :
@@ -233,14 +230,18 @@ class Trainer() :
     def _step(self, batch, train: bool) :
         """
         Input: 
-            batch: (pygbatch_core, condition)
             pygbatch_core: Graph of core molecule
             condition: Dictionary of Tensor
                 ex) {'MW': Tensor(200.0, 215.2, 163.6), 'TPSA': Tensor(40.4, 130.5, 74.3)}
+            pos_block: Union[PyGBatch, LongTensor]
+                - train: PyGBatch 
+                - val: LongTensor
+            neg_blocks: Union[List[PyGBatch], List[LongTensor]]
+                - train: List[PyGBatch]
+                - val: List[LongTensor]
 
             answer:
                 pygbatch_core['y_term']: BoolTensor    (N, )   if termination, then True
-                pygbatch_core['y_block']: LongTensor   (N, )   block index
                 pygbatch_core['y_atom']: BoolTensor    (V, )   for selected atom index, True
 
         Output:
@@ -248,10 +249,11 @@ class Trainer() :
             metric: Dict[str, float]
         """
 
-        pygbatch_core, condition = batch
-        pygbatch_core, condition = self.to_device(pygbatch_core, condition)
-        y_term, y_block, y_atom = pygbatch_core['y_term'], pygbatch_core['y_block'], pygbatch_core['y_atom']
+        batch = self.to_device(batch)
+        pygbatch_core, condition, pos_block, neg_blocks = batch
+        y_term, y_atom = pygbatch_core['y_term'], pygbatch_core['y_atom']
         y_add = torch.logical_not(y_term)
+        num_add = y_add.sum().item()
         node2graph_core = pygbatch_core.batch
         
         # Graph Embedding
@@ -265,43 +267,45 @@ class Trainer() :
         logit_term = self.model.get_termination_logit(Z_core)               # (N,)
         
         loss_term = bce_with_logit_loss(logit_term, y_term.float())
-        if y_add.sum().item() == 0 :
+        if num_add == 0 :
             loss = loss_term
             metrics = {'loss' : loss.item(), 'loss_term' : loss_term.item()}
             return loss, metrics
 
-        # Block Predicton
-        Z_core_add = Z_core[y_add]                                          # (N, Fz_core) -> (N_add, Fz_core)
-        positive_sample = y_block[y_add]                                    # (N, ) -> (N_add,)
-
         ## Positive Sample
-        Z_block = self.get_Z_block(positive_sample, train)                  # (N_add, Fz_block)
-        p_block = self.model.get_block_priority(Z_core_add, Z_block)        # (N_add,)
-        loss_block_pos = (p_block + eps).log().mean().neg()
+        if train is True :
+            pygbatch_block: PyGBatch = pos_block
+            _, Z_pos_block = self.model.building_block_embedding(pygbatch_block)
+        else :
+            block_idx: LongTensor = pos_block                               # (N,)
+            Z_pos_block = self.Z_library[block_idx]                         # (N, Fz_block)
+        p_block = self.model.get_block_priority(Z_core, Z_pos_block)        # (N, )
+        loss_block_pos = ((p_block + eps).log() * y_add).sum().neg() / num_add  # scalar
 
         ## Negative Samples
         loss_block_neg = 0
-        for negative_sample in self.get_negative_samples(positive_sample) :
-            Z_block = self.get_Z_block(negative_sample, train)              # (N_add, Fz_block)
-            p_block = self.model.get_block_priority(Z_core_add, Z_block)    # (N_add,)
-            loss_block_neg += (1. - p_block + eps).log().mean().neg()
+        for neg_block in neg_blocks :
+            if train is True :
+                pygbatch_block: PyGBatch = neg_block
+                _, Z_neg_block = self.model.building_block_embedding(pygbatch_block)
+            else :
+                block_idx: LongTensor = neg_block                           # (N,)
+                Z_neg_block = self.Z_library[block_idx]                     # (N, Fz_block)
+            p_block = self.model.get_block_priority(Z_core, Z_neg_block)    # (N, )
+            loss_block_neg += ((1. - p_block + eps).log() * y_add).sum().neg() / num_add
         loss_block_neg /= self.num_negative_samples
 
         # Atom Index Prediction
         """
         Loss Function: Same to CrossEntropyLoss
-        It is hard to apply termination mask to PyGBatch, 
-          masking is performed after calculate P_atom.
         """
-        Z_block_ = torch.zeros_like(Z_core)
-        Z_block_[y_add] = Z_block
         logit_atom = self.model.get_atom_logit(
-                pygbatch_core, x_upd_core, Z_core, Z_block_
+                pygbatch_core, x_upd_core, Z_core, Z_pos_block
         )
-
         log_P_atom = scatter_log_softmax(logit_atom, pygbatch_core.batch, dim=-1)
-        loss_atom = (log_P_atom * y_atom).sum().neg() / y_add.sum()    # (V, ) -> (V, ) -> scalar
+        loss_atom = (log_P_atom * y_atom).sum().neg() / y_add.sum()
 
+        # Concat
         loss = loss_term + loss_block_pos + loss_block_neg + loss_atom
         metrics = {
             'loss' : loss.item(), 'loss_term' : loss_term.item(),
@@ -310,36 +314,9 @@ class Trainer() :
         }
         return loss, metrics
 
-    def get_Z_block(self, indexs: LongTensor, train: bool) -> FloatTensor :
-        if (train is True) or (self.Z_library is None) :
-            pygbatch_block = PyGBatch.from_data_list([
-                self.library_pygdata_list[idx] for idx in indexs
-            ])
-            pygbatch_block = pygbatch_block.to(self.device)
-            _, Z_block = self.model.building_block_embedding(pygbatch_block)
-            return Z_block
-        else :
-            return self.Z_library[indexs]
-
-    @torch.no_grad()
-    def get_negative_samples(self, positive_sample: LongTensor) -> Iterable[LongTensor]:
-        """
-        positive_sample: LongTensor (N, )  # For Masking
-        output: LongTensor (N, )
-        """
-        batch_size = positive_sample.size(0)
-        if self.frequency_batch.size(0) < batch_size :
-            freq = self.frequency_distribution.repeat(batch_size, 1)
-        else :
-            freq = self.frequency_batch[:batch_size]
-        freq = freq.scatter(1, positive_sample.unsqueeze(1), 0)
-        for _ in range(self.num_negative_samples) :
-            neg_idxs = torch.multinomial(freq, 1, True).view(-1)
-            yield neg_idxs.tolist()
-
     def log_metrics(self, metrics, prefix) :
         for key, value in metrics.items() :
-            self.tb_logger.add_scalar(f'{prefix}/{key}', value, self.global_step)
+            self.tb_logger.add_scalars(f'scalar/{key}', {prefix: value}, self.global_step)
 
     def print_metrics(self, metrics, prefix) :
         loss, tloss, bploss, bnloss, aloss = metrics['loss'], metrics['loss_term'], \
@@ -388,8 +365,11 @@ class Trainer() :
             'loss': loss,
         }
 
-    def to_device(self, pygbatch, condition) :
-        pygbatch = pygbatch.to(self.device)
+    def to_device(self, batch) :
+        pygbatch_core, condition, pos_block, *neg_blocks = batch
+        pygbatch_core = pygbatch_core.to(self.device)
         condition = {key: val.to(self.device) for key, val in condition.items()}
-        return pygbatch, condition
+        pos_block = pos_block.to(self.device)
+        neg_blocks = [block.to(self.device) for block in neg_blocks]
+        return pygbatch_core, condition, pos_block, neg_blocks
 
