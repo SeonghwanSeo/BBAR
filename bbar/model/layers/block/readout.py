@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch import FloatTensor, LongTensor
-from torch_scatter import scatter_sum, scatter_mean
+from torch_scatter import scatter_sum, scatter_mean, scatter_max
 from typing import Optional
 
 from . import fc
@@ -40,15 +40,15 @@ class Readout(nn.Module) :
         node2graph: optional, [V, ]
         global_x: optional, [N, Fc]
         """
-        x = self.linear1(x) * self.linear2(x)           # Similar to SiLU   SiLU(x) = x * sigmoid(x)
+        x = self.linear1(x) * self.linear2(x)               # Similar to SiLU   SiLU(x) = x * sigmoid(x)
         if node2graph is not None :
-            Z1 = scatter_sum(x, node2graph, dim=0)      # V, Fh -> N, Fz
-            Z2 = scatter_mean(x, node2graph, dim=0)     # V, Fh -> N, Fz
+            Z1 = scatter_sum(x, node2graph, dim=0)          # V, Fh -> N, Fz
+            Z2 = scatter_mean(x, node2graph, dim=0)         # V, Fh -> N, Fz
         else :  # when N = 1
-            Z1 = x.sum(0, keepdim = True)               # V, Fh -> 1, Fz       
-            Z2 = x.mean(0, keepdim = True)              # V, Fh -> 1, Fz       
+            Z1 = x.sum(dim=0, keepdim = True)               # V, Fh -> 1, Fz       
+            Z2 = x.mean(dim=0, keepdim = True)              # V, Fh -> 1, Fz       
         if global_x is not None :
-            Z = torch.cat([Z1, Z2, global_x], dim=-1)  # N, 2*Fh + F_cond
+            Z = torch.cat([Z1, Z2, global_x], dim=-1)       # N, 2*Fh + F_cond
         else :
-            Z = torch.cat([Z1, Z2], dim=-1)             # N, 2*Fh
-        return self.linear3(Z)                          # N, 2*Fh + F_cond -> N, Fh
+            Z = torch.cat([Z1, Z2], dim=-1)                 # N, 2*Fh
+        return self.linear3(Z)                              # N, 2*Fh + F_cond -> N, Fh

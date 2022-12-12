@@ -59,12 +59,13 @@ class MoleculeBuilder() :
             return None
         
         core_mol: Mol = scaffold
-        logp_list = []
         for _ in range(0, self.max_iteration) :
-            logp_list.append(MolLogP(core_mol))
             # Graph Embedding
             pygdata_core = CoreGraphTransform.call(core_mol)
-            x_upd_core, Z_core = self.model.core_molecule_embedding(pygdata_core, condition)
+            x_upd_core, Z_core = self.model.core_molecule_embedding(pygdata_core)
+
+            # Condition Embedding
+            x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, condition)
 
             # Predict Termination
             termination = self.predict_termination(Z_core)
@@ -77,7 +78,6 @@ class MoleculeBuilder() :
             compose_success = False
             for _ in range(100) :
                 if not torch.is_nonzero(prob_dist_block.sum()):
-                    print('END')
                     return None
 
                 # Sample block
@@ -96,13 +96,10 @@ class MoleculeBuilder() :
                 if composed_mol is not None :
                     compose_success = True
                     break
-                print('COMPOSE FAIL')
             if compose_success : 
                 core_mol = composed_mol
             else :
                 return None
-        print(logp_list)
-        print('MAX ITERATION')
         return None 
 
     __call__ = generate

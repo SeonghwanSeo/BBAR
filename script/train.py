@@ -9,9 +9,10 @@ sys.path.append("..")
 
 from bbar.train import Trainer
 
-from options.train_options import Train_ArgParser
 from utils.logger import setup_logger
 from utils.seed import set_seed
+
+from options.train_options import Train_ArgParser
 
 import warnings
 warnings.filterwarnings("ignore")

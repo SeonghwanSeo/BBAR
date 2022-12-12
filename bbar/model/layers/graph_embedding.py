@@ -3,13 +3,14 @@ import torch.nn as nn
 
 from typing import Optional, Tuple, Union
 from torch import FloatTensor, LongTensor
+from torch_geometric import nn as pyg_nn
 from torch_geometric.data import Data as PyGData, Batch as PyGBatch
 from torch_geometric.typing import Adj
 
 from . import block
 from bbar.utils.typing import NodeVector, EdgeVector, GlobalVector, GraphVector
 
-class GraphEmbedding(nn.Module):
+class GraphEmbeddingModel(nn.Module):
     def __init__(
         self,
         node_input_dim: int, 
@@ -17,10 +18,12 @@ class GraphEmbedding(nn.Module):
         global_input_dim: Optional[int] = 0, 
         hidden_dim: int = 128,
         graph_vector_dim: Optional[int] = 0, 
-        n_layer: int = 4, 
+        n_block: int = 2, 
+        block_norm: bool = True,
+        graph_vector_norm: bool = True,
         dropout: float = 0.0,
     ) :
-        super(GraphEmbedding, self).__init__()
+        super(GraphEmbeddingModel, self).__init__()
 
         global_input_dim = global_input_dim or 0
         graph_vector_dim = graph_vector_dim or 0
@@ -35,11 +38,10 @@ class GraphEmbedding(nn.Module):
             output_dim = hidden_dim,
             activation = 'SiLU'
         )
-
-        self.convs = nn.ModuleList([
-            block.GINEConv(node_dim = hidden_dim, edge_dim = hidden_dim,
-                                                            activation = 'SiLU')
-            for _ in range(n_layer)
+        self.blocks = nn.ModuleList([
+            block.ResidualBlock(node_dim = hidden_dim, edge_dim = hidden_dim,
+                                activation = 'SiLU', norm = block_norm)
+            for _ in range(n_block)
         ])
 
         if graph_vector_dim > 0 :
@@ -50,8 +52,12 @@ class GraphEmbedding(nn.Module):
                 global_input_dim = global_input_dim,
                 dropout = dropout
             )
+            if graph_vector_norm :
+                self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
+            else :
+                self.graph_vector_norm = None 
         else :
-            self.readout = lambda *x: None
+            self.readout = None 
 
     def forward(
         self,
@@ -81,10 +87,15 @@ class GraphEmbedding(nn.Module):
         x_emb = self.node_embedding(x)
         edge_attr = self.edge_embedding(edge_attr)
 
-        for conv in self.convs :
-            x_emb = conv(x_emb, edge_index, edge_attr = edge_attr)
+        for block in self.blocks :
+            x_emb = block(x_emb, edge_index, edge_attr, node2graph)
 
-        Z = self.readout(x_emb, node2graph, global_x)
+        if self.readout is not None :
+            Z = self.readout(x_emb, node2graph, global_x)
+            if self.graph_vector_norm is not None :
+                Z = self.graph_vector_norm(Z)
+        else :
+            Z = None
 
         return x_emb, Z
 

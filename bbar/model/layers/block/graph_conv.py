@@ -2,12 +2,48 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import torch_geometric as pyg
+import torch_geometric.nn as pyg_nn
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.typing import Adj, OptPairTensor, OptTensor
 
 from typing import Optional, Tuple, Union
 
 from . import fc
+
+class ResidualBlock(nn.Module) :
+    def __init__(
+        self,
+        node_dim: int,
+        edge_dim: int,
+        activation: str = 'SiLU',
+        norm: bool = True,
+        ) :
+        super(ResidualBlock, self).__init__()
+        self.conv1 = GINEConv(node_dim = node_dim, edge_dim = edge_dim,
+                                                            activation = activation)
+        self.graph_norm1 = pyg_nn.LayerNorm(in_channels=node_dim, mode='graph') if norm is True else None
+
+        self.conv2 = GINEConv(node_dim = node_dim, edge_dim = edge_dim,
+                                                            activation = activation)
+        self.graph_norm2 = pyg_nn.LayerNorm(in_channels=node_dim, mode='graph') if norm is True else None
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x: Tensor, edge_index: Adj, edge_attr: Tensor, node2graph: OptTensor) :
+        identity = x
+
+        out = self.conv1(x, edge_index, edge_attr = edge_attr)
+        if self.graph_norm1 is not None :
+            out = self.graph_norm1(out, node2graph)
+        out = self.relu(out)
+
+        out = self.conv2(x, edge_index, edge_attr = edge_attr)
+        if self.graph_norm2 is not None :
+            out = self.graph_norm2(out, node2graph)
+
+        out += identity
+        out = self.relu(out)
+        
+        return out
 
 # Revised Version of GINEConv.
 class GINEConv(MessagePassing) :
@@ -31,8 +67,6 @@ class GINEConv(MessagePassing) :
         self.message_layer = fc.Linear(src_node_dim, dst_node_dim, activation)
         self.eps = torch.nn.Parameter(torch.Tensor([0.1]))
 
-        self.out_layer = fc.Linear(dst_node_dim, dst_node_dim, activation)
-
     def forward(self, x: Union[Tensor, OptPairTensor], edge_index: Adj,
                 edge_attr: Tensor) -> Tensor :
         """
@@ -49,7 +83,7 @@ class GINEConv(MessagePassing) :
         if x_dst is not None :
             x_dst_upd = x_dst_upd + (1 + self.eps) * x_dst
 
-        return self.out_layer(x_dst_upd)
+        return x_dst_upd 
 
     def message(self, x_j, edge_attr) :
         # x_i: dst, x_j: src

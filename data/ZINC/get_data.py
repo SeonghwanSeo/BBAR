@@ -40,7 +40,8 @@ for l in tqdm(train_lines) :
     for key in property_list :
         value = rdmol_desc_list[key](rdmol)
         properties.append(f'{value:.{floating_point[key]}f}')
-    data_writer.write(f'{l.strip()},{",".join(properties)}\n')
+    smiles = Chem.MolToSmiles(rdmol, isomericSmiles=False)
+    data_writer.write(f'{smiles},{",".join(properties)}\n')
     split_writer.write(f'train,{idx}\n')
     idx += 1
 
@@ -51,7 +52,8 @@ for l in tqdm(val_lines) :
     for key in property_list :
         value = rdmol_desc_list[key](rdmol)
         properties.append(f'{value:.{floating_point[key]}f}')
-    data_writer.write(f'{l.strip()},{",".join(properties)}\n')
+    smiles = Chem.MolToSmiles(rdmol, isomericSmiles=False)
+    data_writer.write(f'{smiles},{",".join(properties)}\n')
     split_writer.write(f'val,{idx}\n')
     idx += 1
 
@@ -62,7 +64,8 @@ for l in tqdm(test_lines) :
     for key in property_list :
         value = rdmol_desc_list[key](rdmol)
         properties.append(f'{value:.{floating_point[key]}f}')
-    data_writer.write(f'{l.strip()},{",".join(properties)}\n')
+    smiles = Chem.MolToSmiles(rdmol, isomericSmiles=False)
+    data_writer.write(f'{smiles},{",".join(properties)}\n')
     split_writer.write(f'test,{idx}\n')
     idx += 1
 
