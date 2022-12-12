@@ -67,6 +67,7 @@ class Trainer() :
         logging.info('Setup Work Directory')
         self.save_dir = save_dir = os.path.join(run_dir, 'save')
         self.log_dir = log_dir = os.path.join(run_dir, 'log')
+        self.model_config_path = os.path.join(run_dir, 'model_config.yaml')
         os.mkdir(save_dir)
         os.mkdir(log_dir)
         self.tb_logger = SummaryWriter(log_dir = log_dir)
@@ -147,6 +148,7 @@ class Trainer() :
         logging.info('Setup Model')
         model_config = OmegaConf.load(args.model_config)
         OmegaConf.resolve(model_config)
+        OmegaConf.save(model_config, self.model_config_path)
         model = BlockConnectionPredictor(model_config, self.property_mean_std)
         model.initialize_parameter()
         self.model = model.to(self.device)
@@ -185,7 +187,7 @@ class Trainer() :
 
     def setup_optimizer(self) :
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        schedular = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5, \
+        schedular = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=3, \
                 min_lr=1e-5)
         return optimizer, schedular
 
@@ -201,18 +203,21 @@ class Trainer() :
                 metrics = self.run_val_step(batch)
                 self.append_metrics(metrics_storage, metrics)
         metrics = self.aggregate_metrics(metrics_storage)
+
         loss = metrics['loss']
         self.log_metrics(metrics, 'VAL')
-        self.print_metrics(metrics, 'VAL  ')
+        if loss < self.min_loss :
+            self.min_loss = loss
+            save_path = os.path.join(self.save_dir, 'best.tar')
+            self.model.save(save_path)
+            self.print_metrics(metrics, 'VAL* ')
+        else :
+            self.print_metrics(metrics, 'VAL  ')
 
         self.Z_library = None
         self.library_pygbatch.to('cpu')
         self.model.train()
 
-        if loss < self.min_loss :
-            self.min_loss = loss
-            save_path = os.path.join(self.save_dir, 'best.tar')
-            self.model.save(save_path)
         return loss
 
     def run_train_step(self, batch, optimizer) :
@@ -254,12 +259,12 @@ class Trainer() :
         y_term, y_atom = pygbatch_core['y_term'], pygbatch_core['y_atom']
         y_add = torch.logical_not(y_term)
         num_add = y_add.sum().item()
-        node2graph_core = pygbatch_core.batch
         
         # Graph Embedding
         x_upd_core, Z_core = self.model.core_molecule_embedding(pygbatch_core)
 
         # Condition Embedding
+        node2graph_core = pygbatch_core.batch
         x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, condition, node2graph_core,
                                                             self.condition_noise)
 

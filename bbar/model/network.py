@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from typing import Tuple, Dict, OrderedDict, Union
+from typing import Tuple, Dict, OrderedDict, Union, Optional
 from torch import FloatTensor, LongTensor
 from torch_geometric.data import Data as PyGData, Batch as PyGBatch
 from bbar.utils.typing import NodeVector, EdgeVector, GraphVector, GlobalVector
@@ -92,7 +92,7 @@ class BlockConnectionPredictor(nn.Module) :
         x_upd_core: NodeVector,
         Z_core: GraphVector,
         condition: Dict[str, Union[float, FloatTensor]],
-        node2graph_core: LongTensor,
+        node2graph_core: Optional[LongTensor] = None,
         condition_noise: float = 0.0,
     ) -> Tuple[NodeVector, GraphVector]:
         """
@@ -107,7 +107,7 @@ class BlockConnectionPredictor(nn.Module) :
         """
         condition_vector = self._standardize_condition(condition)   # (N, F_condition)
         if condition_noise > 0 :
-            noise = torch.randn_like(condition) * condition_noise
+            noise = torch.randn_like(condition_vector) * condition_noise
             condition_vector += noise
         return self.condition_embedding_model(x_upd_core, Z_core, condition_vector, node2graph_core)
 

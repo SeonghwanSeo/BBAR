@@ -18,7 +18,9 @@ class GraphEmbeddingModel(nn.Module):
         global_input_dim: Optional[int] = 0, 
         hidden_dim: int = 128,
         graph_vector_dim: Optional[int] = 0, 
-        n_layer: int = 4, 
+        n_block: int = 2, 
+        block_norm: bool = True,
+        graph_vector_norm: bool = True,
         dropout: float = 0.0,
     ) :
         super(GraphEmbeddingModel, self).__init__()
@@ -36,13 +38,11 @@ class GraphEmbeddingModel(nn.Module):
             output_dim = hidden_dim,
             activation = 'SiLU'
         )
-
-        self.convs = nn.ModuleList([
-            block.GINEConv(node_dim = hidden_dim, edge_dim = hidden_dim,
-                                                            activation = 'SiLU')
-            for _ in range(n_layer)
+        self.blocks = nn.ModuleList([
+            block.ResidualBlock(node_dim = hidden_dim, edge_dim = hidden_dim,
+                                activation = 'SiLU', norm = block_norm)
+            for _ in range(n_block)
         ])
-        self.node_vector_norm = pyg_nn.LayerNorm(in_channels=hidden_dim, mode='graph')
 
         if graph_vector_dim > 0 :
             self.readout = block.Readout(
@@ -52,7 +52,10 @@ class GraphEmbeddingModel(nn.Module):
                 global_input_dim = global_input_dim,
                 dropout = dropout
             )
-            self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
+            if graph_vector_norm :
+                self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
+            else :
+                self.graph_vector_norm = None 
         else :
             self.readout = None 
 
@@ -84,14 +87,13 @@ class GraphEmbeddingModel(nn.Module):
         x_emb = self.node_embedding(x)
         edge_attr = self.edge_embedding(edge_attr)
 
-        for conv in self.convs :
-            x_emb_upd = conv(x_emb, edge_index, edge_attr = edge_attr)
-            x_emb_upd = self.node_vector_norm(x_emb, node2graph)
-            x_emb = x_emb + x_emb_upd
+        for block in self.blocks :
+            x_emb = block(x_emb, edge_index, edge_attr, node2graph)
 
         if self.readout is not None :
             Z = self.readout(x_emb, node2graph, global_x)
-            Z = self.graph_vector_norm(Z)
+            if self.graph_vector_norm is not None :
+                Z = self.graph_vector_norm(Z)
         else :
             Z = None
 

@@ -24,7 +24,7 @@ class Train_ArgParser(argparse.ArgumentParser) :
         # Hyperparameter
         hparams_args = self.add_argument_group('training hyperparameter config')
         hparams_args.add_argument('--lr', type=float, default=1e-3)
-        hparams_args.add_argument('--max_step', type=int, default=500000)
+        hparams_args.add_argument('--max_step', type=int, default=200000)
         hparams_args.add_argument('--train_batch_size', type=int, default=512)
         hparams_args.add_argument('--val_batch_size', type=int, default=256)
         hparams_args.add_argument('--num_negative_samples', type=int, default=10)

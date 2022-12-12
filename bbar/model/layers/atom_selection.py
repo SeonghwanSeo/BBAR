@@ -14,11 +14,12 @@ class AtomSelectionModel(nn.Module) :
         self,
         core_node_input_dim: int,           # h_core_input
         core_edge_input_dim: int,
-        core_node_vector_dim: int = 128,    # h_core_upd
-        core_graph_vector_dim: int = 128,   # Z_core
-        block_graph_vector_dim: int = 128,
+        core_node_vector_dim: int,    # h_core_upd
+        core_graph_vector_dim: int,   # Z_core
+        block_graph_vector_dim: int,
         hidden_dim: int = 128,
-        n_layer: int = 4,
+        n_block: int = 2,
+        block_norm: bool = False,
         dropout: float = 0.0
     ) :
 
@@ -30,7 +31,9 @@ class AtomSelectionModel(nn.Module) :
             global_input_dim = core_graph_vector_dim + block_graph_vector_dim,
             hidden_dim = hidden_dim,
             graph_vector_dim = None,
-            n_layer = n_layer,
+            n_block = n_block,
+            block_norm = block_norm,
+            graph_vector_norm = False,
             dropout = dropout
         )
 

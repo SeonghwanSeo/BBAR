@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import FloatTensor
 from . import block
 
-from typing import Tuple
+from typing import Tuple, Optional
 
 class ConditionEmbeddingModel(nn.Module) :
     def __init__(
@@ -45,8 +45,8 @@ class ConditionEmbeddingModel(nn.Module) :
             )
         )
 
-    def forward(self, h_core: FloatTensor, Z_core: FloatTensor, condition: FloatTensor, node2graph: FloatTensor
-                ) -> Tuple[FloatTensor, FloatTensor]:
+    def forward(self, h_core: FloatTensor, Z_core: FloatTensor, condition: FloatTensor, \
+                node2graph: Optional[FloatTensor]) -> Tuple[FloatTensor, FloatTensor]:
         """
         Input :
             h_core: node vector of core molecule.   (V, F_h_core)

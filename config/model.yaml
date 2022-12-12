@@ -1,13 +1,17 @@
 GraphEmbeddingModel_Core:
   hidden_dim: 256
   graph_vector_dim: 256
-  n_layer: 4
+  n_block: 2
+  block_norm: true
+  graph_vector_norm: true
   dropout: 0.0
 
 GraphEmbeddingModel_Block:
   hidden_dim: 256
   graph_vector_dim: 256
-  n_layer: 4
+  n_block: 2
+  block_norm: true
+  graph_vector_norm: true
   dropout: 0.0
 
 ConditionEmbeddingModel:
@@ -32,5 +36,6 @@ AtomSelectionModel:
   core_graph_vector_dim: ${GraphEmbeddingModel_Core.graph_vector_dim}
   block_graph_vector_dim: ${GraphEmbeddingModel_Block.graph_vector_dim}
   hidden_dim: 256
-  n_layer: 4
+  n_block: 2
+  block_norm: true
   dropout: 0.0
