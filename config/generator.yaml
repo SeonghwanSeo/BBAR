@@ -4,10 +4,9 @@
 # I called it `library-builtin model`
 # If below is not `null`, generator save or load library-builtin model.
 # If this file exists, upper two parameters (`model_path`, `library_path`) are not needed.
-#
+
 model_path: <MODEL_PATH>
 library_path: <LIBRARY_PATH>
-
 library_builtin_model_path: <LIBRARY_BUILTIN_MODEL_PATH>
 
 # Required

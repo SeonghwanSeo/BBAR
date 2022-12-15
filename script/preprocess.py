@@ -41,5 +41,5 @@ if __name__ == '__main__' :
     
     mol_list = load_mol_file(args.mol_path)
     fragmented_molecules = parmap.map(brics_fragmentation, mol_list, pm_processes=args.cpus, pm_pbar=True)
-    with open('out_path', 'wb') as f :
+    with open(out_path, 'wb') as f :
         pickle.dump(fragmented_molecules, f)
