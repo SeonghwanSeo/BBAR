@@ -1,0 +1,8 @@
+model_path: ./test/pretrained_model/logp.tar
+library_path: ./data/ZINC/library.csv
+library_builtin_model_path: ./test/builtin_model/logp.tar 
+
+# Required
+window_size: 2000
+alpha: 0.75
+max_iteration: 10
