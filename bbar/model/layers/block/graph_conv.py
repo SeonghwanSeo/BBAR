@@ -15,46 +15,44 @@ class ResidualBlock(nn.Module) :
         self,
         node_dim: int,
         edge_dim: int,
-        activation: str = 'SiLU',
-        norm: bool = True,
+        activation: Optional[str] = 'SiLU',
+        layer_norm: Optional[str] = None,
+        dropout: float = 0.0,
         ) :
         super(ResidualBlock, self).__init__()
-        self.conv1 = GINEConv(node_dim = node_dim, edge_dim = edge_dim,
-                                                            activation = activation)
-        self.graph_norm1 = pyg_nn.LayerNorm(in_channels=node_dim, mode='graph') if norm is True else None
+        self.conv1 = GINEConv(node_dim, edge_dim, activation, layer_norm, dropout)
+        self.graph_norm1 = pyg_nn.LayerNorm(in_channels=node_dim, mode='graph')
 
-        self.conv2 = GINEConv(node_dim = node_dim, edge_dim = edge_dim,
-                                                            activation = activation)
-        self.graph_norm2 = pyg_nn.LayerNorm(in_channels=node_dim, mode='graph') if norm is True else None
+        self.conv2 = GINEConv(node_dim, edge_dim, activation, layer_norm, dropout)
+        self.graph_norm2 = pyg_nn.LayerNorm(in_channels=node_dim, mode='graph')
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: Tensor, edge_index: Adj, edge_attr: Tensor, node2graph: OptTensor) :
         identity = x
 
         out = self.conv1(x, edge_index, edge_attr = edge_attr)
-        if self.graph_norm1 is not None :
-            out = self.graph_norm1(out, node2graph)
+        out = self.graph_norm1(out, node2graph)
         out = self.relu(out)
 
         out = self.conv2(x, edge_index, edge_attr = edge_attr)
-        if self.graph_norm2 is not None :
-            out = self.graph_norm2(out, node2graph)
+        out = self.graph_norm2(out, node2graph)
 
-        out += identity
+        out = (out + identity) / 2
         out = self.relu(out)
         
         return out
 
-# Revised Version of GINEConv.
+# https://pytorch-geometric.readthedocs.io/en/latest/modules/nn.html#torch_geometric.nn.conv.GINEConv
 class GINEConv(MessagePassing) :
     def __init__(
         self,
         node_dim: Union[int, Tuple[int]],
         edge_dim: int,
         activation: Optional[str] = None,
+        norm: Optional[str] = None,
+        dropout: float = 0.0,
         **kwargs,
     ) :
-        kwargs.setdefault('aggr', 'add')
         super(GINEConv, self).__init__(**kwargs)
 
         if isinstance(node_dim, int) :
@@ -62,10 +60,12 @@ class GINEConv(MessagePassing) :
         else :  # (int, int)
             src_node_dim, dst_node_dim = node_dim
 
-        self.edge_layer = fc.Linear(edge_dim, src_node_dim, activation)
-
-        self.message_layer = fc.Linear(src_node_dim, dst_node_dim, activation)
+        self.edge_layer = fc.Linear(edge_dim, src_node_dim, activation, dropout = dropout)
         self.eps = torch.nn.Parameter(torch.Tensor([0.1]))
+        self.nn = nn.Sequential(
+                fc.Linear(dst_node_dim, dst_node_dim, activation, norm, dropout = dropout),
+                fc.Linear(dst_node_dim, dst_node_dim, activation, norm, dropout = 0.0),
+        )
 
     def forward(self, x: Union[Tensor, OptPairTensor], edge_index: Adj,
                 edge_attr: Tensor) -> Tensor :
@@ -83,9 +83,9 @@ class GINEConv(MessagePassing) :
         if x_dst is not None :
             x_dst_upd = x_dst_upd + (1 + self.eps) * x_dst
 
-        return x_dst_upd 
+        return self.nn(x_dst_upd)
 
     def message(self, x_j, edge_attr) :
         # x_i: dst, x_j: src
         edge_attr = self.edge_layer(edge_attr)
-        return self.message_layer((x_j + edge_attr).relu())    # (E, Fh_dst)
+        return (x_j + edge_attr).relu()         # (E, Fh_dst)

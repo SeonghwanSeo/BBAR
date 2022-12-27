@@ -22,40 +22,26 @@ ACT_LIST = {
     'shiftedsoftplus': ShiftedSoftplus,
     'ShiftedSoftplus': ShiftedSoftplus,
 }
-
-class Activation(nn.Module) :
-    def __init__(self, activation: Callable) :
-        super(Activation, self).__init__()
-        self.activation = activation
-
-    def forward(self, input) :
-        return self.activation(input)
+NORM_LIST = {
+    'LayerNorm': nn.LayerNorm,
+    'BatchNorm': nn.BatchNorm1d
+}
 
 class Linear(nn.Sequential) :
     def __init__(
         self,
         input_dim: int,
         output_dim: int, 
-        activation: Union[Callable, str, None] = None,
+        activation: Optional[str] = None,
+        norm: Optional[str] = None,
         bias: bool = True,
-        dropout: float = 0.0
+        dropout: float = 0.0,
     ) :
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        if dropout > 0 :
-            super(Linear, self).__init__(
-                nn.Dropout(p=dropout),
-                nn.Linear(input_dim, output_dim, bias=bias),
-            )
-        else :
-            super(Linear, self).__init__(
-                nn.Linear(input_dim, output_dim, bias=bias),
-            )
-
-        if activation is not None :
-            if isinstance(activation, str) :
-                self.append(ACT_LIST[activation]())
-            elif isinstance(activation, nn.Module) :
-                self.append(activation)
-            else :
-                self.append(Activation(activation))
+        nonlinear_layer = ACT_LIST[activation]() if activation is not None else nn.Identity()
+        norm_layer = NORM_LIST[norm](output_dim) if norm is not None else nn.Identity()
+        super(Linear, self).__init__(
+            nn.Linear(input_dim, output_dim, bias=bias),
+            norm_layer,
+            nonlinear_layer,
+            nn.Dropout(p=dropout)
+        )

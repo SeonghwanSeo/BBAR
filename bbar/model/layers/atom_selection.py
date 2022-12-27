@@ -19,7 +19,6 @@ class AtomSelectionModel(nn.Module) :
         block_graph_vector_dim: int,
         hidden_dim: int = 128,
         n_block: int = 2,
-        block_norm: bool = False,
         dropout: float = 0.0
     ) :
 
@@ -32,8 +31,6 @@ class AtomSelectionModel(nn.Module) :
             hidden_dim = hidden_dim,
             graph_vector_dim = None,
             n_block = n_block,
-            block_norm = block_norm,
-            graph_vector_norm = False,
             dropout = dropout
         )
 

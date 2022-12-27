@@ -42,11 +42,11 @@ def main() :
     out_writer = open(output_path, 'w')
 
     # Load Scaffold
-    assert (args.scaffold_file is not None) ^ (args.scaffold is not None), \
-        "No scaffold information. use --scaffold_file(-S) or --scaffold(-s)"
+    assert (args.scaffold_path is not None) ^ (args.scaffold is not None), \
+        "No scaffold information. use --scaffold_path(-S) or --scaffold(-s)"
 
-    if args.scaffold_file is not None :
-        with open(args.scaffold_file) as f :
+    if args.scaffold_path is not None :
+        with open(args.scaffold_path) as f :
             scaffold_list = [l.strip() for l in f.readlines()]
     else :
         scaffold_list = [args.scaffold]

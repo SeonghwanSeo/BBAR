@@ -4,9 +4,9 @@ import torch.nn as nn
 from typing import Tuple, Dict, OrderedDict, Union, Optional
 from torch import FloatTensor, LongTensor
 from torch_geometric.data import Data as PyGData, Batch as PyGBatch
-from bbar.utils.typing import NodeVector, EdgeVector, GraphVector, GlobalVector
+from bbar.utils.typing import NodeVector, EdgeVector, GraphVector, PropertyVector
 
-from .layers import GraphEmbeddingModel, ConditionEmbeddingModel, \
+from .layers import GraphEmbeddingModel, ConditionEmbeddingModel, PropertyPredictionModel,\
         TerminationPredictionModel, BlockSelectionModel, AtomSelectionModel
 from bbar.transform import NUM_ATOM_FEATURES, NUM_BOND_FEATURES, NUM_BLOCK_FEATURES
 
@@ -18,7 +18,7 @@ class BlockConnectionPredictor(nn.Module) :
         # {property_name: (mean, std)}
         self.property_information = property_information
         self.property_keys = property_information.keys()
-        self.condition_dim = len(property_information)
+        self.property_dim = len(property_information)
 
         # Graph Embedding
         self.core_graph_embedding_model = GraphEmbeddingModel(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
@@ -27,8 +27,12 @@ class BlockConnectionPredictor(nn.Module) :
         self.block_graph_embedding_model = GraphEmbeddingModel(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
                                             NUM_BLOCK_FEATURES, **cfg.GraphEmbeddingModel_Block)
 
+        # Property Regression
+        self.property_prediction_model = PropertyPredictionModel(property_dim = self.property_dim, \
+                                            **cfg.PropertyPredictionModel)
+
         # Condition Embedding
-        self.condition_embedding_model = ConditionEmbeddingModel(condition_dim = self.condition_dim, \
+        self.condition_embedding_model = ConditionEmbeddingModel(condition_dim = self.property_dim, \
                                             **cfg.ConditionEmbeddingModel)
 
         # Terminate Prediction
@@ -41,25 +45,23 @@ class BlockConnectionPredictor(nn.Module) :
         self.atom_selection_model = AtomSelectionModel(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
                                             **cfg.AtomSelectionModel)
 
-    def _standardize_condition(
+    def standardize_property(
         self,
-        condition: Dict[str, Union[float, FloatTensor]],
-        device: torch.device = 'cpu',
-    ) -> GlobalVector :
-
-        assert condition.keys() == self.property_keys, \
+        property: Dict[str, Union[float, FloatTensor]],
+    ) -> PropertyVector :
+        assert property.keys() == self.property_keys, \
             f"Input Keys is not valid\n" \
-            f"\tInput:      {set(condition.keys())}\n" \
+            f"\tInput:      {set(property.keys())}\n" \
             f"\tRequired:   {set(self.property_keys)}"
 
-        condition = [(condition[key] - mean) / std
+        property = [(property[key] - mean) / std
                                 for key, (mean, std) in self.property_information.items()]
-        if isinstance(condition[0], float) :
-            condition = torch.FloatTensor([condition], device=device)     # (1, Fc)
+        if isinstance(property[0], float) :
+            property = torch.FloatTensor([property])        # (1, Fc)
         else :
-            condition = torch.stack(condition, dim=-1)                    # (N, Fc)
+            property = torch.stack(property, dim=-1)        # (N, Fc)
 
-        return condition
+        return property 
         
     def core_molecule_embedding(
         self,
@@ -86,30 +88,33 @@ class BlockConnectionPredictor(nn.Module) :
             Z_block: Graph Vector                       (N, Fz_block)           # Used
         """
         return self.block_graph_embedding_model.forward_batch(batch)
-    
+
+    def get_property_prediction(self, Z_core: GraphVector) -> PropertyVector:
+        """
+        Input:
+            Z_core: Graph Vector                        (N, Fz_core)
+        Output: 
+            y_hat_property: PropertyVector                (N, Fc)
+        """
+        return self.property_prediction_model(Z_core)
+
     def condition_embedding(
         self,
         x_upd_core: NodeVector,
         Z_core: GraphVector,
-        condition: Dict[str, Union[float, FloatTensor]],
+        condition: PropertyVector,
         node2graph_core: Optional[LongTensor] = None,
-        condition_noise: float = 0.0,
     ) -> Tuple[NodeVector, GraphVector]:
         """
         Input:
             x_upd_core: Updated Node Vector             (V_core, Fh_core)
             Z_core: Graph Vector                        (N, Fz_core)
-            condition: Condition                        {property_key: property_value}
-
+            condition: Condition Vector                 (N, Fc)
         Output:
             x_upd_core: Updated Node Vector             (V_core, Fh_core)
             Z_core: Graph Vector                        (N, Fz_core)
         """
-        condition_vector = self._standardize_condition(condition)   # (N, F_condition)
-        if condition_noise > 0 :
-            noise = torch.randn_like(condition_vector) * condition_noise
-            condition_vector += noise
-        return self.condition_embedding_model(x_upd_core, Z_core, condition_vector, node2graph_core)
+        return self.condition_embedding_model(x_upd_core, Z_core, condition, node2graph_core)
 
     def get_termination_logit(self, Z_core: GraphVector) -> FloatTensor:
         """

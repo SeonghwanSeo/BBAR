@@ -8,10 +8,9 @@ from typing import Tuple, Optional
 class ConditionEmbeddingModel(nn.Module) :
     def __init__(
         self,
-        core_node_vector_dim,
-        core_graph_vector_dim,
+        core_node_vector_dim: int,
+        core_graph_vector_dim: int,
         condition_dim: int,
-        hidden_dim: int,
         dropout: float = 0.0
     ) :
 
@@ -19,12 +18,12 @@ class ConditionEmbeddingModel(nn.Module) :
         self.node_mlp = nn.Sequential(
             block.Linear(
                 input_dim = core_node_vector_dim + condition_dim,
-                output_dim = hidden_dim,
+                output_dim = core_node_vector_dim,
                 activation = 'SiLU',
                 dropout = dropout
             ),
             block.Linear(
-                input_dim = hidden_dim,
+                input_dim = core_node_vector_dim,
                 output_dim = core_node_vector_dim,
                 activation = 'SiLU',
                 dropout = dropout
@@ -33,12 +32,12 @@ class ConditionEmbeddingModel(nn.Module) :
         self.graph_mlp = nn.Sequential(
             block.Linear(
                 input_dim = core_graph_vector_dim + condition_dim,
-                output_dim = hidden_dim,
+                output_dim = core_graph_vector_dim,
                 activation = 'SiLU',
                 dropout = dropout
             ),
             block.Linear(
-                input_dim = hidden_dim,
+                input_dim = core_graph_vector_dim,
                 output_dim = core_graph_vector_dim,
                 activation = 'SiLU',
                 dropout = dropout

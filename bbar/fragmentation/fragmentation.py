@@ -156,7 +156,7 @@ class FragmentedGraph() :
             connection: (int, int) => (scaffold atom index, fragment atom index)
         """
         if traj is None :
-            traj = self.get_random_subtrajectory(min_length = 2)
+            traj = self.get_subtrajectory(min_length = 2)
         scaffold_units, fragment_unit = traj[:-1], traj[-1]
 
         if fragment_unit is None :
@@ -183,28 +183,8 @@ class FragmentedGraph() :
             
             return scaffold, fragment, (scaffold_atom_index, fragment_atom_index)
 
-    def get_random_trajectory(self) -> List[Unit] :
-        """
-        trajectory: 
-            choose random unit A
-            choose random unit B adjacent to A
-            choose random unit C adjacent to [A,B]
-            ...
-            At the end, add termination sign `None`
-
-        ex) A-B-C-D
-            - [C,D,B,A,None]
-            - [B,A,C,D,None]
-            - [A,B,C,D,None]
-            - ...
-        """
-        return self.get_random_subtrajectory(min_length = self.num_units + 1)
-        
-    def get_random_subtrajectory(
-        self,
-        min_length = 1,
-        max_length = None,
-    ) -> List[Unit]:
+    def get_subtrajectory(self, length = None, 
+                                 min_length = 1, max_length = None) -> List[Unit]: 
         """
         sub-trajectory
         ex) A-B-C-D
@@ -212,25 +192,34 @@ class FragmentedGraph() :
             - [B,A,C]
             - [A,B,C,D,None]    # None: termination sign
             - ...
-        trajectory length is random value btw min_length and N+1     # N: num of unit
+        trajectory length is value btw 1 and N+1    # N: num of unit
         """
-        assert max_length is None or max_length >= min_length
-        if max_length is None :
-            max_length = self.num_units + 1 
-        traj_length = random.randrange(min_length, max_length+1)
+        if length is None :
+            assert max_length is None or max_length >= min_length
+            if max_length is None :
+                max_length = self.num_units + 1 
+            else :
+                max_length = min(max_length, self.num_units + 1)
+            length = random.randrange(min_length, max_length + 1)
 
-        if traj_length == self.num_units + 1:
+        if length == self.num_units + 1:
             traj = list(self.units) + [None]
         else :
-            start_unit = random.choice(self.units)
-            traj = [start_unit]
-            neighbors = set(start_unit.neighbors)
-            for _ in range(traj_length - 1) :   # minus one because already one unit in trajectory (traj = [start_unit])
-                unit = random.choice(tuple(neighbors))
+            traj: List[Unit] = []
+            neighbors: Set[Unit] = set()
+            traj_length = 0
+            while True :
+                if traj_length == 0 :
+                    unit = random.choice(self.units)
+                else :
+                    unit = random.choice(tuple(neighbors))
                 traj.append(unit)
+                traj_length += 1
+                if traj_length == length :
+                    break
                 neighbors.update(unit.neighbors)
                 neighbors = neighbors.difference(traj)
-        return traj 
+        return traj
 
 def fragmentation(mol: Union[SMILES, Mol]) -> FragmentedGraph:
     return FragmentedGraph(mol)

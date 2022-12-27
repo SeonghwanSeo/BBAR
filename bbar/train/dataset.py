@@ -53,8 +53,7 @@ class BBARDataset(Dataset) :
 
     def __getitem__(self, idx):
         # Load Datapoint
-        fragmented_mol = self.fragmented_molecules[idx]
-        core_rdmol, block_idx, core_atom_idx = self.get_datapoint(fragmented_mol)
+        core_rdmol, block_idx, core_atom_idx = self.get_datapoint(idx)
         pygdata_core = self.core_transform(core_rdmol)
 
         # Load Condition
@@ -93,17 +92,23 @@ class BBARDataset(Dataset) :
                 neg_idxs = self.get_negative_samples(block_idx)
             return pygdata_core, condition, pos_idx, *neg_idxs 
 
+    def get_datapoint(self, idx) -> Tuple[Mol, int, int]:
+        # terminate : add = 1 : 1
+        fragmented_mol = self.fragmented_molecules[idx]
 
-    def get_datapoint(self, fragmented_mol) :
-        datapoint = fragmented_mol.get_datapoint()
+        min_length = 2
+        max_length = len(fragmented_mol) + 1
+        length_list = np.arange(min_length, max_length + 1)
+        length = np.random.choice(length_list, p = length_list / length_list.sum())
+        traj = fragmented_mol.get_subtrajectory(length)
+
+        datapoint = fragmented_mol.get_datapoint(traj)
         core_rdmol, block_rdmol, (core_atom_idx, _) = datapoint
         if block_rdmol is not None :
             block_idx = self.library.get_index(block_rdmol)
-            datapoint = (core_rdmol, block_idx, core_atom_idx)
+            return (core_rdmol, block_idx, core_atom_idx)
         else :
-            datapoint = (core_rdmol, None, None)
-
-        return datapoint
+            return (core_rdmol, None, None)
 
     def get_negative_samples(self, positive_sample: int) -> List[int]:
         freq = torch.clone(self.library_frequency)

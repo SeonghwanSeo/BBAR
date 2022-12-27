@@ -13,7 +13,7 @@ class Generation_ArgParser(argparse.ArgumentParser) :
         # Scaffold-based Generation
         scaf_args = self.add_argument_group('scaffold-based generation')
         scaf_args.add_argument('-s', '--scaffold', type=str, default=None, help='scaffold SMILES')
-        scaf_args.add_argument('-S', '--scaffold_file', type=str, default=None, help='scaffold SMILES path')
+        scaf_args.add_argument('-S', '--scaffold_path', type=str, default=None, help='scaffold SMILES path')
 
         # Optional Parameters
         opt_args = self.add_argument_group('optional')

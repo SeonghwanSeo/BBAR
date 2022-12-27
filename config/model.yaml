@@ -1,41 +1,40 @@
 GraphEmbeddingModel_Core:
-  hidden_dim: 256
+  hidden_dim: 128
   graph_vector_dim: 256
   n_block: 2
-  block_norm: true
-  graph_vector_norm: true
-  dropout: 0.0
+  dropout: 0.1
 
 GraphEmbeddingModel_Block:
   hidden_dim: 256
   graph_vector_dim: 256
   n_block: 2
-  block_norm: true
-  graph_vector_norm: true
-  dropout: 0.0
+  dropout: 0.1
 
 ConditionEmbeddingModel:
   core_node_vector_dim: ${GraphEmbeddingModel_Core.hidden_dim}
   core_graph_vector_dim: ${GraphEmbeddingModel_Core.graph_vector_dim}
-  hidden_dim: 256
+  dropout: 0.0
+
+PropertyPredictionModel:
+  core_graph_vector_dim: ${GraphEmbeddingModel_Core.graph_vector_dim}
+  hidden_dim: 128
   dropout: 0.0
 
 TerminationPredictionModel:
   core_graph_vector_dim: ${GraphEmbeddingModel_Core.graph_vector_dim}
-  hidden_dim: 256
+  hidden_dim: 128
   dropout: 0.0
 
 BlockSelectionModel:
   core_graph_vector_dim: ${GraphEmbeddingModel_Core.graph_vector_dim}
   block_graph_vector_dim: ${GraphEmbeddingModel_Block.graph_vector_dim}
-  hidden_dim: 256
+  hidden_dim: 128
   dropout: 0.0
 
 AtomSelectionModel:
   core_node_vector_dim: ${GraphEmbeddingModel_Core.hidden_dim}
   core_graph_vector_dim: ${GraphEmbeddingModel_Core.graph_vector_dim}
   block_graph_vector_dim: ${GraphEmbeddingModel_Block.graph_vector_dim}
-  hidden_dim: 256
+  hidden_dim: 128
   n_block: 2
-  block_norm: true
   dropout: 0.0

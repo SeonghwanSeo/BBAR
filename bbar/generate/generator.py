@@ -1,5 +1,4 @@
 from rdkit import Chem, RDLogger
-from rdkit.Chem.Descriptors import MolLogP
 
 import torch
 import numpy as np
@@ -26,26 +25,37 @@ RDLogger.DisableLog('rdApp.*')
 
 class MoleculeBuilder() :
     def __init__(self, config) :
+        self.model: BlockConnectionPredictor
+        self.library: BRICS_BlockLibrary
+        self.Z_library: FloatTensor
+        self.library_mask: BoolTensor
+        self.library_freq_weighted: FloatTensor
+        self.window_size: int
+        self.target_properties: Set[str]
+
         self.cfg = config
         self.max_iteration = config.max_iteration
 
-        library_builtin_model_path = config.library_builtin_model_path
         # Load Model & Library
+        library_builtin_model_path = config.library_builtin_model_path
         if library_builtin_model_path is not None and os.path.exists(library_builtin_model_path) :
-            self.model, self.library, self.Z_library = self.load_library_builtin_model(library_builtin_model_path)
+            self.model, self.library, self.Z_library, self.library_mask = \
+                            self.load_library_builtin_model(library_builtin_model_path)
         else :
-            self.model = self.load_model(config.model_path)
-            self.library = self.load_library(config.library_path)
-            self.Z_library = self.embed_model_with_library(library_builtin_model_path)
+            self.model = model = self.load_model(config.model_path)
+            self.library = library = self.load_library(config.library_path)
+            self.Z_library = self.get_Z_library(model, library)
+            self.library_mask = self.get_library_mask(library)
+            if library_builtin_model_path is not None :
+                self.save_builtin_model(library_builtin_model_path)
 
         # Setup Library Information
         library_freq = self.library.frequency_distribution
-        self.library_freq_weighted: FloatTensor = library_freq ** config.alpha
-        self.library_mask: BoolTensor = self.get_library_allow_brics_list()
-        self.window_size: int = min(len(self.library), config.window_size)
+        self.library_freq_weighted = library_freq ** config.alpha
+        self.window_size = min(len(self.library), config.window_size)
 
         # Setup after self.setup()
-        self.target_properties: Set[str] = self.model.property_keys
+        self.target_properties = self.model.property_keys
 
     @torch.no_grad()
     def generate(
@@ -59,13 +69,14 @@ class MoleculeBuilder() :
             return None
         
         core_mol: Mol = scaffold
+        cond = self.model.standardize_property(condition)
         for _ in range(0, self.max_iteration) :
             # Graph Embedding
             pygdata_core = CoreGraphTransform.call(core_mol)
             x_upd_core, Z_core = self.model.core_molecule_embedding(pygdata_core)
-
+            
             # Condition Embedding
-            x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, condition)
+            x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, cond)
 
             # Predict Termination
             termination = self.predict_termination(Z_core)
@@ -76,7 +87,7 @@ class MoleculeBuilder() :
             prob_dist_block = self.get_prob_dist_block(core_mol, Z_core)
                                                                                                     # (N_lib)
             compose_success = False
-            for _ in range(100) :
+            for _ in range(10) :
                 if not torch.is_nonzero(prob_dist_block.sum()):
                     return None
 
@@ -96,6 +107,7 @@ class MoleculeBuilder() :
                 if composed_mol is not None :
                     compose_success = True
                     break
+
             if compose_success : 
                 core_mol = composed_mol
             else :
@@ -104,38 +116,23 @@ class MoleculeBuilder() :
 
     __call__ = generate
 
-    def get_core_feature(self, core_mol) :
-        h = feature.get_atom_features(core_mol, brics=False).unsqueeze(0)
-        adj = feature.get_adj(core_mol).unsqueeze(0)
-        return h, adj
-
     def predict_termination(self, Z_core) :
         p_term = self.model.get_termination_probability(Z_core)
         termination = Bernoulli(probs=p_term).sample().bool().item()
         return termination
 
     def get_prob_dist_block(self, core_mol, Z_core) :
-        brics_labels = [int(label) for label in utils.get_possible_brics_labels(core_mol)]
-        if False :
-            block_mask = self.library_mask[brics_labels].sum(dim=0).bool()
-            if block_mask.sum() == 0 :
-                return None
-
-            freq = self.library_freq_weighted * block_mask
-            if self.window_size < block_mask.sum() :
-                block_index_list = torch.multinomial(freq, self.window_size, False)
-            else :
-                block_index_list = torch.where(block_mask)[0]   # Boolean Tensor to Index
-        else :
-            block_index_list = torch.where(self.library_mask[brics_labels].sum(dim=0) > 0)[0]
-            if block_index_list.size(0) == 0 :
-                return None
-
-            if self.window_size < block_index_list.size(0) :
-                freq = self.library_freq_weighted[block_index_list]
-                block_index_list = block_index_list[torch.multinomial(freq, self.window_size, False)]
-
         prob_dist_block = torch.zeros((len(self.library), )) 
+
+        brics_labels = [int(label) for label in utils.get_possible_brics_labels(core_mol)]
+        block_index_list = torch.where(self.library_mask[brics_labels].sum(dim=0) > 0)[0]
+        if block_index_list.size(0) == 0 :
+            return prob_dist_block
+
+        if self.window_size < block_index_list.size(0) :
+            freq = self.library_freq_weighted[block_index_list]
+            block_index_list = block_index_list[torch.multinomial(freq, self.window_size, False)]
+
         Z_core = Z_core.repeat(len(block_index_list), 1)
         Z_block = self.Z_library[block_index_list]
         priority_block = self.model.get_block_priority(Z_core, Z_block)
@@ -182,34 +179,32 @@ class MoleculeBuilder() :
                                 save_rdmol = True)
         
         Z_library = checkpoint['Z_library']
-        return model, library, Z_library
+        library_mask = checkpoint['library_mask'].T
+        return model, library, Z_library, library_mask
 
-    def embed_model_with_library(self, library_builtin_model_path) :
-        logging.info("Setup Library Building Blocks' Graph Vectors")
-        with torch.no_grad() :
-            library_pygdata_list = [BlockGraphTransform.call(mol) for mol in self.library.rdmol_list]
-            library_pygbatch = PyGBatch.from_data_list(library_pygdata_list)
-            _, Z_library = self.model.building_block_embedding(library_pygbatch)
-        logging.info("Finish")
-        if library_builtin_model_path is not None :
-            logging.info(f"Create Local File ({library_builtin_model_path})")
-            torch.save({
-                'model_state_dict': self.model.state_dict(),
-                'config': self.model._cfg,
-                'property_information': self.model.property_information,
-                'library_smiles': self.library.smiles_list,
-                'library_frequency': self.library.frequency_distribution,
-                'Z_library': Z_library
-            }, library_builtin_model_path)
-        else :
-            logging.info("You can save graph vectors by setting generator_config.library_builtin_model_path")
-        return Z_library
-
-    def get_library_allow_brics_list(self) :
-        library_mask = torch.zeros((len(self.library), 17), dtype=torch.bool)
-        for i, brics_label in enumerate(self.library.brics_label_list) : 
+    def get_library_mask(self, library) -> BoolTensor:
+        library_mask = torch.zeros((len(library), 17), dtype=torch.bool)
+        for i, brics_label in enumerate(library.brics_label_list) : 
             allow_brics_label_list = utils.BRICS_ENV_INT[brics_label]
             for allow_brics_label in allow_brics_label_list :
                 library_mask[i, allow_brics_label] = True
         return library_mask.T   # (17, n_library)
-   
+    
+    @torch.no_grad()
+    def get_Z_library(self, model, library) -> FloatTensor:
+        library_pygdata_list = [BlockGraphTransform.call(mol) for mol in self.library.rdmol_list]
+        library_pygbatch = PyGBatch.from_data_list(library_pygdata_list)
+        _, Z_library = self.model.building_block_embedding(library_pygbatch)
+        return Z_library
+
+    def save_builtin_model(self, save_path) :
+        logging.info(f"Create Local File ({save_path})")
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'config': self.model._cfg,
+            'property_information': self.model.property_information,
+            'library_smiles': self.library.smiles_list,
+            'library_frequency': torch.clone(self.library.frequency_distribution),
+            'Z_library': torch.clone(self.Z_library),
+            'library_mask': torch.clone(self.library_mask.T),
+        }, save_path)

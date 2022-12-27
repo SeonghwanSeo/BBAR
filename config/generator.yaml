@@ -1,13 +1,12 @@
-# library-builtin model file path. (Model Parameter + SMILES and Latent Vectors for fragments in library.)
-# During generation, model vectorizes the fragments in library.
-# You can skip this process by saving all of them: model parameter, library informations.
-# I called it `library-builtin model`
-# If below is not `null`, generator save or load library-builtin model.
-# If this file exists, upper two parameters (`model_path`, `library_path`) are not needed.
-
+# If library_builtin_model_path is not null, generator save or load library-builtin model.
+# The library-builtin model contains model parameters and library information.
+# 	(library information: SMILES and latent vector of building block)
+# During configuration process of generator, model vectorizes all building blocks in library.
+# This process requires about 30 seconds. With library-builtin model, this process is skipped.
+# When the file `library_builtin_model_path` exists, upper two parameters (`model_path`, `library_path`) are not needed.
 model_path: <MODEL_PATH>
 library_path: <LIBRARY_PATH>
-library_builtin_model_path: <LIBRARY_BUILTIN_MODEL_PATH>
+gibrary_builtin_model_path: <LIBRARY_BUILTIN_MODEL_PATH>  # optional
 
 # Required
 window_size: 2000

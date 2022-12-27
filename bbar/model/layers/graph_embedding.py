@@ -19,8 +19,6 @@ class GraphEmbeddingModel(nn.Module):
         hidden_dim: int = 128,
         graph_vector_dim: Optional[int] = 0, 
         n_block: int = 2, 
-        block_norm: bool = True,
-        graph_vector_norm: bool = True,
         dropout: float = 0.0,
     ) :
         super(GraphEmbeddingModel, self).__init__()
@@ -39,8 +37,9 @@ class GraphEmbeddingModel(nn.Module):
             activation = 'SiLU'
         )
         self.blocks = nn.ModuleList([
-            block.ResidualBlock(node_dim = hidden_dim, edge_dim = hidden_dim,
-                                activation = 'SiLU', norm = block_norm)
+            block.ResidualBlock(
+                node_dim = hidden_dim, edge_dim = hidden_dim,
+                activation = 'SiLU', layer_norm = None, dropout = dropout)
             for _ in range(n_block)
         ])
 
@@ -50,12 +49,10 @@ class GraphEmbeddingModel(nn.Module):
                 hidden_dim = graph_vector_dim,
                 output_dim = graph_vector_dim,
                 global_input_dim = global_input_dim,
+                activation = 'SiLU',
                 dropout = dropout
             )
-            if graph_vector_norm :
-                self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
-            else :
-                self.graph_vector_norm = None 
+            #self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
         else :
             self.readout = None 
 
@@ -87,13 +84,12 @@ class GraphEmbeddingModel(nn.Module):
         x_emb = self.node_embedding(x)
         edge_attr = self.edge_embedding(edge_attr)
 
-        for block in self.blocks :
-            x_emb = block(x_emb, edge_index, edge_attr, node2graph)
+        for convblock in self.blocks :
+            x_emb = convblock(x_emb, edge_index, edge_attr, node2graph)
 
         if self.readout is not None :
             Z = self.readout(x_emb, node2graph, global_x)
-            if self.graph_vector_norm is not None :
-                Z = self.graph_vector_norm(Z)
+            #Z = self.graph_vector_norm(Z)
         else :
             Z = None
 
