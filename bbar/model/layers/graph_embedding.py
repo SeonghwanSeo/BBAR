@@ -43,6 +43,13 @@ class GraphEmbeddingModel(nn.Module):
             for _ in range(n_block)
         ])
 
+        self.final_node_embedding = block.Linear(
+            input_dim = hidden_dim + node_input_dim,
+            output_dim = hidden_dim,
+            activation = 'SiLU',
+            dropout = dropout,
+        )
+
         if graph_vector_dim > 0 :
             self.readout = block.Readout(
                 node_dim = hidden_dim,
@@ -52,13 +59,12 @@ class GraphEmbeddingModel(nn.Module):
                 activation = 'SiLU',
                 dropout = dropout
             )
-            #self.graph_vector_norm = nn.LayerNorm(graph_vector_dim)
         else :
             self.readout = None 
 
     def forward(
         self,
-        x: NodeVector,
+        x_inp: NodeVector,
         edge_index: Adj,
         edge_attr: EdgeVector,
         global_x: Optional[GlobalVector] = None,
@@ -66,7 +72,7 @@ class GraphEmbeddingModel(nn.Module):
     ) -> Tuple[NodeVector, Optional[GraphVector]] :
         """
         Input :
-            x: input node feature of graph              (V, Fv)
+            x_inp: input node feature of graph          (V, Fv)
             edge_index: edge index of graph             (2, E)
             edge_attr: input edge attr of graph         (E, Fe)
             global_x: input graph feature such as condition (optional)   
@@ -79,7 +85,7 @@ class GraphEmbeddingModel(nn.Module):
                 if graph_vector_dim is 0, Z is None
         """
 
-        x = self.concat(x, global_x, node2graph)
+        x = self.concat(x_inp, global_x, node2graph)
 
         x_emb = self.node_embedding(x)
         edge_attr = self.edge_embedding(edge_attr)
@@ -87,9 +93,11 @@ class GraphEmbeddingModel(nn.Module):
         for convblock in self.blocks :
             x_emb = convblock(x_emb, edge_index, edge_attr, node2graph)
 
+        x_emb = torch.cat([x_emb, x_inp], dim=-1)
+        x_emb = self.final_node_embedding(x_emb)
+
         if self.readout is not None :
             Z = self.readout(x_emb, node2graph, global_x)
-            #Z = self.graph_vector_norm(Z)
         else :
             Z = None
 

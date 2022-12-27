@@ -145,8 +145,9 @@ class MoleculeBuilder() :
         return block_idx
 
     def predict_atom_idx(self, core_mol, block_mol, pygdata_core, x_upd_core, Z_core, Z_block) -> Union[int, None]:
+        edge_index_core, edge_attr_core = pygdata_core.edge_index, pygdata_core.edge_attr
         prob_dist_atom = self.model.get_atom_probability_distribution(
-                pygdata_core, x_upd_core, Z_core, Z_block
+                x_upd_core, edge_index_core, edge_attr_core, Z_core, Z_block
         )
         # Masking
         masked_prob_dist_atom = torch.zeros_like(prob_dist_atom)

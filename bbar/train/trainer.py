@@ -20,8 +20,8 @@ import gc
 from typing import Tuple, Union, List, Iterable, Dict
 from collections import OrderedDict
 from torch import LongTensor, BoolTensor, FloatTensor
-from rdkit.Chem import Mol
-from bbar.utils.typing import GraphVector, NodeVector, PropertyVector, LossScalar
+from torch_geometric.typing import Adj
+from bbar.utils.typing import GraphVector, NodeVector, EdgeVector, PropertyVector, LossScalar
 
 from bbar.model import BlockConnectionPredictor
 from bbar.transform import BlockGraphTransform
@@ -313,7 +313,9 @@ class Trainer() :
         metrics['loss_neg_block'] = loss_neg_block
 
         # Atom Index Prediction
-        loss_atom = self.atom_prediction(pygbatch_core, x_upd_core, Z_core, Z_pos_block, y_atom)
+        edge_index_core, edge_attr_core = pygbatch_core.edge_index, pygbatch_core.edge_attr
+        loss_atom = self.atom_prediction(x_upd_core, edge_index_core, edge_attr_core, \
+                                                    Z_core, Z_pos_block, node2graph_core, y_atom)
         metrics['loss_atom'] = loss_atom
 
         return metrics
@@ -372,16 +374,18 @@ class Trainer() :
 
     def atom_prediction(
         self, 
-        pygbatch_core: PyGBatch, 
         x_upd_core: NodeVector, 
+        edge_index_core: Adj,
+        edge_attr_core: EdgeVector,
         Z_core: GraphVector, 
         Z_block: GraphVector,
+        node2graph_core: LongTensor,
         y_atom: BoolTensor,
     ) -> LossScalar :
         logit_atom = self.model.get_atom_logit(
-                pygbatch_core, x_upd_core, Z_core, Z_block
+                x_upd_core, edge_index_core, edge_attr_core, Z_core, Z_block, node2graph_core
         )
-        log_P_atom = scatter_log_softmax(logit_atom, pygbatch_core.batch, dim=-1)
+        log_P_atom = scatter_log_softmax(logit_atom, node2graph_core, dim=-1)
         loss_atom = (log_P_atom * y_atom).sum().neg() / y_atom.sum()    # CrossEntropyLoss
         return loss_atom
 

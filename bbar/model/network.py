@@ -4,6 +4,7 @@ import torch.nn as nn
 from typing import Tuple, Dict, OrderedDict, Union, Optional
 from torch import FloatTensor, LongTensor
 from torch_geometric.data import Data as PyGData, Batch as PyGBatch
+from torch_geometric.typing import Adj
 from bbar.utils.typing import NodeVector, EdgeVector, GraphVector, PropertyVector
 
 from .layers import GraphEmbeddingModel, ConditionEmbeddingModel, PropertyPredictionModel,\
@@ -42,7 +43,7 @@ class BlockConnectionPredictor(nn.Module) :
         self.block_selection_model = BlockSelectionModel(**cfg.BlockSelectionModel)
 
         # Atom Selection
-        self.atom_selection_model = AtomSelectionModel(NUM_ATOM_FEATURES, NUM_BOND_FEATURES,
+        self.atom_selection_model = AtomSelectionModel(NUM_BOND_FEATURES,
                                             **cfg.AtomSelectionModel)
 
     def standardize_property(
@@ -146,48 +147,41 @@ class BlockConnectionPredictor(nn.Module) :
 
     def get_atom_probability_distribution(
         self,
-        batch_core: Union[PyGData, PyGBatch],
         x_upd_core: NodeVector,
+        edge_index_core: Adj,
+        edge_attr_core: EdgeVector,
         Z_core: GraphVector,
         Z_block: GraphVector,
+        node2graph_core: Optional[LongTensor] = None
         ) -> FloatTensor:
         """
         Input:
-            batch_core: PyGData or PyGBatch. (Transform by CoreGraphTransform) 
             h_upd_core: From core_molecule_embedding    (V_core, Fh_core)
+            edge_index_core: From input data            (2, E)
+            edge_attr_core: From input data             (E, Fe)
             Z_core: From core_molecule_embedding        (N, Fz_core)
             Z_block: From building_block_embedding      (N, Fz_block)
+            node2graph_core: From input data,
         Output:
             P_atom: Probability Distribution of Atoms   (V_core, )
         """
-        x_inp_core, edge_index_core, edge_attr_core = \
-                batch_core.x, batch_core.edge_index, batch_core.edge_attr
-        if isinstance(batch_core, PyGBatch) :
-            node2graph_core = batch_core.batch
-        else :
-            node2graph_core = None
-
         return self.atom_selection_model(
-            x_inp_core, edge_index_core, edge_attr_core, x_upd_core, 
+            x_upd_core, edge_index_core, edge_attr_core,
             Z_core, Z_block, node2graph_core
         )
 
     def get_atom_logit(
         self,
-        batch_core: Union[PyGData, PyGBatch],
         x_upd_core: NodeVector,
+        edge_index_core: Adj,
+        edge_attr_core: EdgeVector,
         Z_core: GraphVector,
         Z_block: GraphVector,
+        node2graph_core: Optional[LongTensor] = None,
         ) -> FloatTensor:
-        x_inp_core, edge_index_core, edge_attr_core = \
-                batch_core.x, batch_core.edge_index, batch_core.edge_attr
-        if isinstance(batch_core, PyGBatch) :
-            node2graph_core = batch_core.batch
-        else :
-            node2graph_core = None
 
         return self.atom_selection_model(
-            x_inp_core, edge_index_core, edge_attr_core, x_upd_core, 
+            x_upd_core, edge_index_core, edge_attr_core,
             Z_core, Z_block, node2graph_core, return_logit=True
         )
 

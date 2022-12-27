@@ -12,7 +12,6 @@ from .graph_embedding import GraphEmbeddingModel
 class AtomSelectionModel(nn.Module) :
     def __init__(
         self,
-        core_node_input_dim: int,           # h_core_input
         core_edge_input_dim: int,
         core_node_vector_dim: int,    # h_core_upd
         core_graph_vector_dim: int,   # Z_core
@@ -36,7 +35,7 @@ class AtomSelectionModel(nn.Module) :
 
         self.mlp = nn.Sequential(
             block.Linear(
-                input_dim = core_node_input_dim + core_node_vector_dim,
+                input_dim = core_node_vector_dim,
                 output_dim = hidden_dim,
                 activation = 'relu',
                 dropout = dropout
@@ -51,10 +50,9 @@ class AtomSelectionModel(nn.Module) :
 
     def forward(
         self,
-        x_inp_core: FloatTensor,
+        x_upd_core: FloatTensor,
         edge_index_core: Adj,
         edge_attr_core: FloatTensor,
-        x_upd_core: FloatTensor,
         Z_core: FloatTensor,
         Z_block: FloatTensor,
         node2graph_core: Optional[LongTensor] = None,
@@ -65,7 +63,6 @@ class AtomSelectionModel(nn.Module) :
             x_upd_core: updated node feature of core molecule   (V_core, Fh)
             edge_index_core: edge index of core molecule        (2, E_core)
             edge_attr_core: edge attr of core molecule          (E_core, Fe)
-            x_inp_core: input node feature of core molecule     (V_core, Fv)
             Z_core: latent vector of core molecule              (N, Fz_core)
             Z_block: latent vector of block                     (N, Fz_block)
             node2graph_core: map node to graph of core molecule(optional)
@@ -75,13 +72,10 @@ class AtomSelectionModel(nn.Module) :
         """
 
         Z_cat = torch.cat([Z_core, Z_block], dim=-1)                # (N, Fz_core + Fz_block)
-        x_upd2_core, _ = self.graph_embedding(x_upd_core, edge_index_core, edge_attr_core,
+        x_upd2, _ = self.graph_embedding(x_upd_core, edge_index_core, edge_attr_core,
                 global_x = Z_cat, node2graph = node2graph_core)     # (V, Fh)
 
-        # Linear
-        _x_core = torch.cat([x_upd2_core, x_inp_core], dim=-1)      # (V, Fh + Fv)
-
-        logit = self.mlp(_x_core).squeeze(-1)                       # (V, Fh + Fv) -> (V, Fh) -> (V, )
+        logit = self.mlp(x_upd2).squeeze(-1)                        # (V, Fh + Fv) -> (V, Fh) -> (V, )
 
         if return_logit :
             return logit
