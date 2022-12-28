@@ -186,13 +186,11 @@ class Trainer() :
                 if self.global_step % self.save_interval == 0 :
                     save_path = os.path.join(self.save_dir, f'ckpt_{self.global_epoch}_{self.global_step}.tar')
                     self.model.save(save_path)
-
+                if self.global_step == self.max_step :
+                    break
                 if self.global_step % self.val_interval == 0 :
                     val_loss_dict = self.validate()
                     schedular.step(val_loss_dict['loss'])
-
-                if self.global_step == self.max_step :
-                    break
 
         self.validate()
         save_path = os.path.join(self.save_dir, 'last.tar')
