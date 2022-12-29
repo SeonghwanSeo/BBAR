@@ -121,10 +121,9 @@ class Trainer() :
         # Setup Dataset
         def construct_dataset(dataframe, data_pkl, index, train: bool) :
             indexed_df = dataframe.loc[index]
-            indexed_data = indexed_df.values.tolist()
-            molecules = [row[0] for row in indexed_data]
-            properties = [{key: val for key, val in zip(args.property, row[1:])}
-                        for row in indexed_data]
+            molecules = [row.SMILES for row in indexed_df.itertuples(index=False)]
+            properties = [{key: getattr(row, key) for key in args.property}
+                            for row in indexed_df.itertuples(index=False)]
             fragmented_molecules = [data_pkl[idx] for idx in index] if data_pkl is not None else None
             return BBARDataset(molecules, fragmented_molecules, properties, 
                     self.library, self.library_pygdata_list, self.library_frequency, self.num_negative_samples, 

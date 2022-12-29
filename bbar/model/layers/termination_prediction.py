@@ -23,7 +23,6 @@ class TerminationPredictionModel(nn.Module) :
                 input_dim = hidden_dim,
                 output_dim = 1,
                 activation = None,
-                dropout = dropout
             )
         )
         self.sigmoid = nn.Sigmoid()

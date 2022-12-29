@@ -29,7 +29,6 @@ class PropertyPredictionModel(nn.Module) :
                 input_dim = hidden_dim,
                 output_dim = property_dim,
                 activation = None,
-                dropout = dropout
             )
         )
 
