@@ -28,10 +28,14 @@ def load_mol_file(mol_path: str) -> List[SMILES]:
 
 if __name__ == '__main__' :
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mol_path', type=str, help='SMILES File Path.')
-    parser.add_argument('--out_path', type=str, help='Save Path for Library, Extension should be .smi or .csv')
+    parser.add_argument('--data_dir', type=str, help='Data Directory Path.')
     parser.add_argument('--cpus', type=int, default=1)
     args = parser.parse_args()
     
-    mol_list = load_mol_file(args.mol_path)
-    BRICS_BlockLibrary.create_library_file(args.out_path, mol_list, cpus=args.cpus)
+    mol_path = os.path.join(args.data_dir, 'data.csv')
+    out_path = os.path.join(args.data_dir, 'library.csv')
+
+    assert os.path.exists(mol_path)
+    
+    mol_list = load_mol_file(mol_path)
+    BRICS_BlockLibrary.create_library_file(out_path, mol_list, cpus=args.cpus)

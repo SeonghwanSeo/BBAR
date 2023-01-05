@@ -1,15 +1,29 @@
-# BBAR: Molecular generative model via retrosynthetically prepared chemical building block assembly
+# Molecular generative model via retrosynthetically prepared chemical building block assembly
 
-Official github of ***Molecular generative model via retrosynthetically prepared chemical building block assembly*** by Seonghwan Seo\*, Jaechang Lim, Woo Youn Kim. (Accepted, *Advanced Science*)
+**Advanced Science** [[Paper](https://doi.org/10.1002/advs.202206674)] [[arXiv](https://arxiv.org/abs/2111.12907)]
+
+Official github of ***Molecular generative model via retrosynthetically prepared chemical building block assembly*** by Seonghwan Seo\*, Jaechang Lim, Woo Youn Kim. (*Advanced Science*)
 
 This repository is improved version(BBARv2) of [jaechang-hits/BBAR-pytorch](https://github.com/jaechang-hits/BBAR-pytorch) which contains codes and model weights to reproduce the results in paper.
 
 If you have any problems or need help with the code, please add an issue or contact [shwan0106@kaist.ac.kr](mailto:shwan0106@kaist.ac.kr).
 
-### Paper
+### Citation
 
-- Publication: Molecular generative model via retrosynthecally prepared chemical building block assembly (To be Published)
-- Previous version (arxiv preprint): [Fragment-based molecular generative model with high generalization ability and synthetic accessibility](https://arxiv.org/abs/2111.12907)
+```
+@article{seo2022bbar,
+  title = {Molecular Generative Model via Retrosynthetically Prepared Chemical Building Block Assembly},
+  author = {Seo, Seonghwan and Lim, Jaechang and Kim, Woo Youn},
+  journal = {Advanced Science},
+  volume = {n/a},
+  number = {n/a},
+  pages = {2206674},
+  doi = {https://doi.org/10.1002/advs.202206674},
+  url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/advs.202206674},
+}
+```
+
+
 
 ## Table of Contents
 
@@ -71,8 +85,6 @@ Move to `data/ZINC` directory, and run `python get_data.py`. And then, `data.csv
         └── library.csv
 ```
 
-
-
 ### Prepare Your Own Dataset
 
 For your own dataset, you need to prepare `data.csv` and `split.csv` as follows.
@@ -108,7 +120,7 @@ And then, you need to create a ***building block library***. Go to root director
 ```shell
 cd <ROOT-DIR>
 python ./script/get_library.py \
-  --data_dir ./data/<OWN-DATA>/data.csv \
+  --data_dir ./data/<OWN-DATA> \
   --cpus <N-CPUS>
 ```
 
@@ -260,7 +272,7 @@ Generator config (Yaml)
   library_path: ./data/ZINC/library.csv
   library_builtin_model_path: ./test/builtin_model/logp.tar
   
-  n_library_sample: 2000
+  window_size: 2000
   alpha: 0.75
   max_iteration: 10
   ```
