@@ -9,7 +9,7 @@ from torch_geometric.data import Data as PyGData, Batch as PyGBatch
 import os
 import logging
 
-from typing import Dict, Union, Optional, Set
+from typing import Dict, Union, Optional, Set, Tuple, List
 from rdkit.Chem import Mol
 from torch import BoolTensor, FloatTensor
 from bbar.utils.typing import SMILES 
@@ -22,6 +22,10 @@ from bbar.utils.common import convert_to_rdmol
 from . import utils
 
 RDLogger.DisableLog('rdApp.*')
+
+TERMINATION = 1
+ADDITION = 2
+FAIL = 3
 
 class MoleculeBuilder() :
     def __init__(self, config) :
@@ -57,64 +61,108 @@ class MoleculeBuilder() :
         # Setup after self.setup()
         self.target_properties = self.model.property_keys
 
-    @torch.no_grad()
     def generate(
         self,
         scaffold: Union[Mol, SMILES],
         condition: Optional[Dict[str, float]] = None,
+        return_traj: bool = False,
         ) :
+        if return_traj :
+            return self.__generate_w_traj(scaffold, condition)
+        else :
+            return self.__generate_wo_traj(scaffold, condition)
 
-        scaffold: Mol = convert_to_rdmol(scaffold)
-        if len(utils.get_possible_brics_labels(scaffold)) == 0 :
-            return None
-        
-        core_mol: Mol = scaffold
+    __call__ = generate
+    run = generate
+
+    def __generate_wo_traj(
+        self,
+        scaffold: Union[Mol, SMILES],
+        condition: Optional[Dict[str, float]] = None,
+        ) -> Mol :
+        core_mol: Mol = convert_to_rdmol(scaffold)
         cond = self.model.standardize_property(condition)
         for _ in range(0, self.max_iteration) :
-            # Graph Embedding
-            pygdata_core = CoreGraphTransform.call(core_mol)
-            x_upd_core, Z_core = self.model.core_molecule_embedding(pygdata_core)
-            
-            # Condition Embedding
-            x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, cond)
-
-            # Predict Termination
-            termination = self.predict_termination(Z_core)
-            if termination :
+            step_sign, composed_mol = self.run_one_step(core_mol, standardized_condition=cond)
+            if step_sign is TERMINATION :
                 return core_mol
-
-            # Sampling building blocks
-            prob_dist_block = self.get_prob_dist_block(core_mol, Z_core)
-                                                                                                    # (N_lib)
-            compose_success = False
-            for _ in range(10) :
-                if not torch.is_nonzero(prob_dist_block.sum()):
-                    return None
-
-                # Sample block
-                block_idx = self.sample_block(prob_dist_block)
-                block_mol = self.library.get_rdmol(block_idx)
-
-                # Predict Index
-                Z_block = self.Z_library[block_idx].unsqueeze(0)
-                atom_idx = self.predict_atom_idx(core_mol, block_mol, pygdata_core, x_upd_core, Z_core, Z_block)
-                if atom_idx is None :
-                    prob_dist_block[block_idx] = 0
-                    continue
-
-                # Compose
-                composed_mol = utils.compose(core_mol, block_mol, atom_idx, 0)
-                if composed_mol is not None :
-                    compose_success = True
-                    break
-
-            if compose_success : 
+            elif step_sign is ADDITION :
                 core_mol = composed_mol
-            else :
+            else : #step_sign is FAIL
                 return None
         return None 
 
-    __call__ = generate
+    def __generate_w_traj(
+        self,
+        scaffold: Union[Mol, SMILES],
+        condition: Optional[Dict[str, float]] = None,
+        ) -> Tuple[Mol, List[Mol]] :
+        core_mol: Mol = convert_to_rdmol(scaffold)
+        cond = self.model.standardize_property(condition)
+        traj = [core_mol]
+        for _ in range(0, self.max_iteration) :
+            step_sign, composed_mol = self.run_one_step(core_mol, standardized_condition=cond)
+            if step_sign is TERMINATION :
+                return core_mol, traj
+            elif step_sign is ADDITION :
+                traj.append(composed_mol)
+                core_mol = composed_mol
+            else : #step_sign is FAIL
+                traj.append(None)
+                return None, traj
+        return None, traj
+
+    @torch.no_grad()
+    def run_one_step(
+        self,
+        core_mol: Union[Mol, SMILES],
+        condition: Dict[str, float] = None,
+        standardized_condition: FloatTensor = None,
+        ) -> Mol :
+
+        core_mol: Mol = convert_to_rdmol(core_mol)
+
+        assert (condition is not None) or (standardized_condition is not None)
+        if standardized_condition is not None :
+            cond = standardized_condition
+        else :
+            cond = self.model.standardize_property(condition)
+
+        # Graph Embedding
+        pygdata_core = CoreGraphTransform.call(core_mol)
+        x_upd_core, Z_core = self.model.core_molecule_embedding(pygdata_core)
+        
+        # Condition Embedding
+        x_upd_core, Z_core = self.model.condition_embedding(x_upd_core, Z_core, cond)
+
+        # Predict Termination
+        termination = self.predict_termination(Z_core)
+        if termination :
+            return TERMINATION, None
+
+        # Sampling building blocks
+        prob_dist_block = self.get_prob_dist_block(core_mol, Z_core)
+                                                                                                # (N_lib)
+        for _ in range(10) :
+            if not torch.is_nonzero(prob_dist_block.sum()):
+                return FAIL, None
+
+            # Sample block
+            block_idx = self.sample_block(prob_dist_block)
+            block_mol = self.library.get_rdmol(block_idx)
+
+            # Predict Index
+            Z_block = self.Z_library[block_idx].unsqueeze(0)
+            atom_idx = self.predict_atom_idx(core_mol, block_mol, pygdata_core, x_upd_core, Z_core, Z_block)
+            if atom_idx is None :
+                prob_dist_block[block_idx] = 0
+                continue
+
+            # Compose
+            composed_mol = utils.compose(core_mol, block_mol, atom_idx, 0)
+            if composed_mol is not None :
+                return ADDITION, composed_mol
+        return FAIL, None
 
     def predict_termination(self, Z_core) :
         p_term = self.model.get_termination_probability(Z_core)
