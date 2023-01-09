@@ -11,7 +11,7 @@ If you have any problems or need help with the code, please add an issue or cont
 ### Citation
 
 ```
-@article{seo2022bbar,
+@article{seo2023bbar,
   title = {Molecular Generative Model via Retrosynthetically Prepared Chemical Building Block Assembly},
   author = {Seo, Seonghwan and Lim, Jaechang and Kim, Woo Youn},
   journal = {Advanced Science},
