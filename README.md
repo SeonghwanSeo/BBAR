@@ -40,10 +40,11 @@ If you have any problems or need help with the code, please add an issue or cont
 
 - python=3.9
 - [PyTorch]((https://pytorch.org/))=1.12
-- Tensorboard=2.11.0
 - [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/)=2.1.0
+- Tensorboard=2.11.0
 - [Pandas](https://pandas.pydata.org/)=1.5.1
 - [RDKit](https://www.rdkit.org/docs/Install.html)=2022.3.5
+- [OmegaConf](http://Omegaconf.readthedocs.io)=2.3.0
 - Parmap=1.6.0
 
 ## Data
@@ -227,15 +228,15 @@ Example running script.
 mkdir ./result_sample
 
 # Scaffold-based generation. => use `-s` or `--scaffold`
-python sample.py \
-    -g ./test/generation_config/tpsa.yaml \
+python ./script/sample.py \
+    -g ./test/generation_config/logp.yaml \
     -s "c1ccccc1" \
     --num_samples 100 \
     --logp 6 \
     -o ./result_sample/logp\=6.smi
 
 # Scaffold-based generation. (From File) => use `-S` or `--scaffold_path`
-python sample.py \
+python ./script/sample.py \
     --generator_config ./test/generation_config/mw.yaml \
     --scaffold_path ./test/start_scaffolds.smi \
     --num_samples 100 \
