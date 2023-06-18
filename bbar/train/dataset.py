@@ -5,7 +5,6 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from tqdm import tqdm
-import parmap
 
 from typing import Optional, List, Dict, Union, Tuple
 from torch import BoolTensor, FloatTensor
