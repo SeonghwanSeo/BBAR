@@ -4,9 +4,11 @@
 
 Official github of ***Molecular generative model via retrosynthetically prepared chemical building block assembly*** by Seonghwan Seo\*, Jaechang Lim, Woo Youn Kim. (*Advanced Science*)
 
-This repository is improved version(BBARv2) of [jaechang-hits/BBAR-pytorch](https://github.com/jaechang-hits/BBAR-pytorch) which contains codes and model weights to reproduce the results in paper. You can find the updated architectures at [`architecture`](/architecture).
+This repository is improved version(BBARv2) of [jaechang-hits/BBAR-pytorch](https://github.com/jaechang-hits/BBAR-pytorch) which contains codes and model weights to reproduce the results in paper. You can find the updated architectures at [`architecture/`](/architecture).
 
 If you have any problems or need help with the code, please add an issue or contact [shwan0106@kaist.ac.kr](mailto:shwan0106@kaist.ac.kr).
+
+<img src="images/TOC.png" width=600>
 
 ### Citation
 
