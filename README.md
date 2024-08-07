@@ -27,7 +27,7 @@ If you have any problems or need help with the code, please add an issue or cont
 
 ## Table of Contents
 
-- [Environment](#environment)
+- [Installation](#installation)
 - [Data](#data)
   - [Dataset Structure](#dataset-structure)
   - [Prepare Your Own Dataset](#prepare-your-own-dataset)
@@ -36,16 +36,13 @@ If you have any problems or need help with the code, please add an issue or cont
   - [Training](#training)
 - [Generation](#generation)
 
-## Environment
+## Installation
 
-- python=3.9
-- [PyTorch]((https://pytorch.org/))=1.12
-- [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/)=2.1.0
-- Tensorboard=2.11.0
-- [Pandas](https://pandas.pydata.org/)=1.5.1
-- [RDKit](https://www.rdkit.org/docs/Install.html)=2022.3.5
-- [OmegaConf](http://Omegaconf.readthedocs.io)=2.3.0
-- Parmap=1.6.0
+The project can be installed by pip with `--find-links` arguments for torch-geometric package.
+```bash
+pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cu121.html # CUDA
+pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cpu.html # CPU-only
+```
 
 ## Data
 
