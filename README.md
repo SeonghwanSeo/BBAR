@@ -8,6 +8,7 @@ This repository is improved version(BBARv2) of [jaechang-hits/BBAR-pytorch](http
 
 If you have any problems or need help with the code, please add an issue or contact [shwan0106@kaist.ac.kr](mailto:shwan0106@kaist.ac.kr).
 
+
 ### Citation
 
 ```
@@ -31,105 +32,78 @@ If you have any problems or need help with the code, please add an issue or cont
 - [Data](#data)
   - [Dataset Structure](#dataset-structure)
   - [Prepare Your Own Dataset](#prepare-your-own-dataset)
-- [Model Training](#model-training)
   - [Preprocess](#preprocess)
+- [Model Training](#model-training)
   - [Training](#training)
 - [Generation](#generation)
 
 ## Installation
 
 The project can be installed by pip with `--find-links` arguments for torch-geometric package.
+
 ```bash
 pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cu121.html # CUDA
 pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cpu.html # CPU-only
 ```
 
+
+
 ## Data
 
 ### Dataset Structure
 
-#### Data Directory Structure
-
-Move to `data/` directory. Initially, the structure of directory `data/` is as follows.
+Initially, the structure of directory `data/` is as follows.
 
 ```bash
 ├── data/
-    ├── ZINC/               (ZINC15 Database)
-    │   ├── smiles/
-    │   │   ├── train.smi   (https://github.com/wengong-jin/icml18-jtnn/tree/master/data/zinc/train.txt)
-    │   │   ├── valid.smi   (https://github.com/wengong-jin/icml18-jtnn/tree/master/data/zinc/valid.txt)
-    │   │   └── test.smi    (https://github.com/wengong-jin/icml18-jtnn/tree/master/data/zinc/test.txt)
-    │   ├── get_data.py
+    ├── ZINC/               (Constructed from https://github.com/wengong-jin/icml18-jtnn)
+    │   ├── data.csv
     │   └── library.csv
-    └── 3CL_ZINC/           (Smina calculation result. (ligands: ZINC15, receptor: 7L13))
-        ├── data.csv
-        ├── split.csv
-        └── library.csv     (Same to data/ZINC/library.csv)
+    ├── 3CL_ZINC/           (Smina calculation result. (ligands: ZINC15, receptor: 7L13))
+    └── UniDock_ZINC/       (UniDock calculation result.)
 ```
 
 - `data/ZINC/`, `data/3CL_ZINC/` : Dataset which used in our paper.
 
-#### Prepare ZINC15 Dataset
-
-Move to `data/ZINC` directory, and run `python get_data.py`. And then, `data.csv` and `split.csv` will be created. The dataset for 3CL docking is already prepared.
-
-```bash
-├── data/
-    ├── ZINC/
-        ├── smiles/
-        ├── get_data.py
-        ├── data.csv      new!
-        ├── split.csv     new!
-        └── library.csv
-```
-
 ### Prepare Your Own Dataset
 
-For your own dataset, you need to prepare `data.csv` and `split.csv` as follows.
+For your own dataset, you need to prepare `data.csv` as follows.
 
 - `./data/<OWN-DATA>/data.csv`
 
   ```
-  SMILES,Property1,Property2,...
-  c1ccccc1,10.25,32.21,...
-  C1CCCC1,35.1,251.2,...
+  KEY,SMILES,Property1,Property2,...
+  1,c1ccccc1,10.25,32.21,...
+  2,C1CCCC1,35.1,251.2,...
   ...
   ```
 
-  - SMILES must be RDKit-readable.
+  - `KEY` field is optional.
+  - `SMILES` field must be RDKit-readable.
   - If you want to train a single molecule set with different properties, you don't have to configure datasets separately for each property. You need to configure just one dataset file which contains all of property information. For example, `ZINC/data.csv` contains information about `mw`, `logp`, `tpsa`, `qed`, and you can train the model with property or properties, e.g. `mw`, `[mw, logp, tpsa]`.
 
-- `./data/<OWN-DATA>/split.csv`
+### Preprocess
 
-  ```
-  train,0
-  train,1
-  ...
-  val,125
-  ...
-  test,163
-  ...
-  ```
-
-  - First column is data type (train, val, test), and second column is index of `data.csv`.
-
-And then, you need to create a ***building block library***. Go to root directory and run `./script/get_library.py`.
+You need to preprocess dataset. Go to root directory and run `./script/preprocess.py`.
 
 ```shell
 cd <ROOT-DIR>
-python ./script/get_library.py \
-  --data_dir ./data/<OWN-DATA> \
-  --cpus <N-CPUS>
+python ./script/preprocess.py \
+  --data_dir ./data/<DATA-DIR> \
+  --cpus <N-CPUS> \
+  --split_ratio 0.9  # train:val split ratio.
 ```
 
-After this step, the structure of directory `data/` is as follows.
+After preprocessing step, the structure of directory `data/` is as follows.
 
 ```bash
 ├── data/
-    ├── <OWN-DATA>/
+    ├── <DATA-DIR>/
         ├── data.csv
-        ├── split.csv
-        └── library.csv     new!
+        ├── valid_data.csv  new!
+        ├── data.pkl        new!
+        ├── library.csv     new!
+        └── split.csv       new!
 ```
 
 
@@ -137,30 +111,6 @@ After this step, the structure of directory `data/` is as follows.
 ## Model Training
 
 The model training requires less than <u>*12 hours*</u> with 1 GPU(RTX2080) and 4 CPUs(Intel Xeon Gold 6234).
-
-### Preprocess (Optional)
-
-You can skip data processing during train by pre-processing data with `./script/preprocess.py`.
-
-```shell
-cd <ROOT-DIR>
-python ./script/preprocess.py \
-  --data_dir ./data/<DATA-DIR> \
-  --cpus <N-CPUS>
-```
-
-After preprocessing step, the structure of directory `data/` is as follows. `data.csv`, `split.csv` and `library.csv` are required, and `data.pkl` is optional.
-
-```bash
-├── data/
-    ├── <DATA-DIR>/
-        ├── data.csv
-        ├── data.pkl      new!
-        ├── split.csv
-        └── library.csv
-```
-
-
 
 ### Training
 
@@ -197,6 +147,8 @@ python ./script/train.py \
     --data_dir ./data/3CL_ZINC/ \
     --property affinity
 ```
+
+
 
 ## Generation
 
@@ -274,3 +226,4 @@ Generator config (Yaml)
   alpha: 0.75
   max_iteration: 10
   ```
+
