@@ -1,4 +1,4 @@
-#conda install --yes -c conda-forge gdown
+conda install --yes -c conda-forge gdown
 mkdir -p ./test/pretrained_model
 cd ./test/pretrained_model
 gdown 'https://drive.google.com/uc?id=1t-gS7bCOxO5gqv8GXkluTzx1mO20_L0G'    # logp

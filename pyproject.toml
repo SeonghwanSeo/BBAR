@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bbar"
+version = "2.0.1"
+description = "PharmacoNet: Molecular generative model via retrosynthetically prepared chemical building block assembly"
+license = { text = "MIT" }
+authors = [{ name = "Seonghwan Seo", email = "shwan0106@kaist.ac.kr" }]
+requires-python = ">=3.10"
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Development Status :: 4 - Beta",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12"
+]
+
+dependencies = [
+    "numpy==1.26.4",
+    "torch==2.1.2",
+    "torch-geometric==2.4.0",
+    "torch-scatter==2.1.2",
+    "torch-sparse==0.6.18",
+    "torch-cluster==1.6.3",
+    "rdkit",
+    "tensorboard",
+    "omegaconf>=2.3",
+    "parmap",
+    "pandas",
+    "gdown",
+]
+
+[project.urls]
+Website = "https://github.com/SeonghwanSeo/BBAR"
+"Source Code" = "https://github.com/SeonghwanSeo/BBAR"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# CODING
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "UP", "T203",]
+ignore = ["E501"]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = [
+    "F401", # imported but unused
+    "E402", # Module level import not at top of file
+]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
+diagnosticMode = "openFilesOnly"
+reportImplicitStringConcatenation = false
+reportGeneralTypeIssues = "warning"
+reportDeprecated = "warning"
+reportUnusedVariable = false
+reportUnusedImport = false
+
