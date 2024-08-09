@@ -25,10 +25,19 @@ def convert_to_SMILES(smiles: str) -> Optional[str]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--data_dir", type=str, help="Data Directory Path.")
-    parser.add_argument("--cpus", type=int, default=1, help="Num Workers")
-    parser.add_argument("--split_ratio", type=float, help="Train/Validation split ratio")
-    parser.add_argument("--seed", default=1, help="random seed for split")
+    parser.add_argument("-d", "--data_dir", type=str, help="Data Directory Path.", required=True)
+    parser.add_argument(
+        "--cpus",
+        type=int,
+        default=1,
+        help="Num Workers",
+    )
+    parser.add_argument("--split_ratio", type=float, help="Train/Validation split ratio", required=True)
+    parser.add_argument(
+        "--seed",
+        default=1,
+        help="random seed for split",
+    )
     args = parser.parse_args()
     random.seed(args.seed)
 

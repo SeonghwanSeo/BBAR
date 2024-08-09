@@ -168,7 +168,8 @@ sh ./download-weights.sh
 
 ```shell
 cd <ROOT-DIR>
-python ./script/sample.py -h
+python ./script/sample_denovo.py -h
+python ./script/sample_scaffold.py -h
 ```
 
 Example running script.
@@ -177,21 +178,29 @@ Example running script.
 # Output directory path
 mkdir ./result_sample
 
+# De novo generation.
+python ./script/sample_denovo.py \
+    -g ./test/generation_config/logp.yaml \
+    -n 100 \
+    --logp 6 \
+    -o ./result_sample/logp-6-denovo.smi \
+    --seed 0
+
 # Scaffold-based generation. => use `-s` or `--scaffold`
-python ./script/sample.py \
+python ./script/sample_scaffold.py \
     -g ./test/generation_config/logp.yaml \
     -s "c1ccccc1" \
-    --num_samples 100 \
-    --logp 6 \
-    -o ./result_sample/logp\=6.smi
+    -n 100 \
+    --logp 2 \
+    -o ./result_sample/logp-2-scaffold.smi
 
 # Scaffold-based generation. (From File) => use `-S` or `--scaffold_path`
-python ./script/sample.py \
+python ./script/sample_scaffold.py \
     --generator_config ./test/generation_config/mw.yaml \
     --scaffold_path ./test/start_scaffolds.smi \
     --num_samples 100 \
     --mw 300 \
-    --o ./result_sample/mw\=300.smi \
+    --o ./result_sample/mw-300-scaffold.smi \
     --seed 0 -q
 ```
 
