@@ -53,18 +53,16 @@ pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cpu.html # CP
 
 ### Dataset Structure
 
-Initially, the structure of directory `data/` is as follows.
+Initially, the structure of directory `data/` is as follows. Please unzip the necessary data with `tar -xzvf` commands.
 
 ```bash
 ├── data/
-    ├── ZINC/               (Constructed from https://github.com/wengong-jin/icml18-jtnn)
-    │   ├── data.csv
-    │   └── library.csv
-    ├── 3CL_ZINC/           (Smina calculation result. (ligands: ZINC15, receptor: 7L13))
-    └── UniDock_ZINC/       (UniDock calculation result.)
+    ├── ZINC.tar.gz         (Constructed from https://github.com/wengong-jin/icml18-jtnn)
+    ├── 3CL_ZINC.tar.gz     (Smina calculation result. (ligands: ZINC15, receptor: 7L13))
+    └── LIT-PCBA.tar.gz     (ZINC20 UniDock calculation result against 15 LIT-PCBA targets)
 ```
 
-- `data/ZINC/`, `data/3CL_ZINC/` : Dataset which used in our paper.
+- `data/ZINC`, `data/3CL_ZINC` : Dataset which used in our paper.
 
 ### Prepare Your Own Dataset
 
@@ -107,11 +105,9 @@ After preprocessing step, the structure of directory `data/` is as follows.
         └── split.csv       new!
 ```
 
-
-
 ## Model Training
 
-The model training requires less than <u>*12 hours*</u> with 1 GPU(RTX2080) and 4 CPUs(Intel Xeon Gold 6234).
+The model training requires less than <u>*12 hours*</u> for 200k steps with 1 GPU(RTX2080) and 4 CPUs(Intel Xeon Gold 6234).
 
 ### Training
 
@@ -129,6 +125,7 @@ python ./script/train.py \
     --name <exp-name> \
     --exp_dir <exp-dir-name> \          # default: ./result/
     --property <property1> <property2> ... \
+    --max_step 100000 \                 # default: 100k; for paper, we used 200k.
     --data_dir <DATA-DIR> \             # default: ./data/ZINC/
     --model_config <model-config-path>  # default: ./config/model.yaml
 ```
@@ -147,8 +144,13 @@ python ./script/train.py \
     --exp_dir ./result/3cl_affinity/ \
     --data_dir ./data/3CL_ZINC/ \
     --property affinity
-```
 
+python ./script/train.py \
+    --name 'litpcba-ADRB2' \
+    --exp_dir ./result/LIT-PCBA/ \
+    --data_dir ./data/LIT-PCBA/ \
+    --property ADRB2 QED
+```
 
 
 ## Generation

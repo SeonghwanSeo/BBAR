@@ -1,18 +1,12 @@
-from rdkit import Chem
-
 import random
 import time
 from omegaconf import OmegaConf
-
-import sys
-
-sys.path.append(".")
-sys.path.append("..")
+from rdkit import Chem
 
 from utils.seed import set_seed
-from options.generation_options import Denovo_Generation_ArgParser
 
 from bbar.generate import MoleculeBuilder
+from bbar.options.generation_options import Denovo_Generation_ArgParser
 
 
 def setup_generator():

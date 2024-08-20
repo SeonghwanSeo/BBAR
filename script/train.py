@@ -1,19 +1,14 @@
+import os
+from pathlib import Path
 import logging
 from omegaconf import OmegaConf
 
-import os
-from pathlib import Path
-import sys
-
-sys.path.append(".")
-sys.path.append("..")
-
+import torch
 from bbar.train import Trainer
+from bbar.options.train_options import Train_ArgParser
 
 from utils.logger import setup_logger
 from utils.seed import set_seed
-
-from options.train_options import Train_ArgParser
 
 import warnings
 
@@ -21,6 +16,7 @@ warnings.filterwarnings("ignore")
 
 
 def main():
+    torch.multiprocessing.set_sharing_strategy("file_system")  # for Ubuntu (open file = 1024)
     set_seed(0)
     parser = Train_ArgParser()
     args = parser.parse_args()
