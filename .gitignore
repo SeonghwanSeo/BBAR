@@ -9,7 +9,7 @@ run.sh
 test/builtin_model
 test/train_canoni*
 data/
-actionsampling_cfg
+actionsampling_*
 jobscript.sh
 slurm-*
 

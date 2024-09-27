@@ -6,7 +6,7 @@
 # When the file `library_builtin_model_path` exists, upper two parameters (`model_path`, `library_path`) are not needed.
 model_path: <MODEL_PATH>
 library_path: <LIBRARY_PATH>
-gibrary_builtin_model_path: <LIBRARY_BUILTIN_MODEL_PATH>  # optional
+library_builtin_model_path: <LIBRARY_BUILTIN_MODEL_PATH>  # optional
 
 # Required
 window_size: 2000

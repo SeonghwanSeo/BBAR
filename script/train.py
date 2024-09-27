@@ -13,10 +13,10 @@ from utils.seed import set_seed
 import warnings
 
 warnings.filterwarnings("ignore")
+torch.multiprocessing.set_sharing_strategy("file_system")  # for Ubuntu (open file = 1024)
 
 
 def main():
-    torch.multiprocessing.set_sharing_strategy("file_system")  # for Ubuntu (open file = 1024)
     set_seed(0)
     parser = Train_ArgParser()
     args = parser.parse_args()

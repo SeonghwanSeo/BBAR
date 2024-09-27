@@ -13,8 +13,15 @@ def setup_generator():
     # Parsing
     parser = Scaffold_Generation_ArgParser()
     args, remain_args = parser.parse_known_args()
-
     generator_cfg = OmegaConf.load(args.generator_config)
+
+    # Overwrite Config
+    if args.model_path is not None:
+        generator_cfg.model_path = args.model_path
+    if args.library_path is not None:
+        generator_cfg.library_path = args.library_path
+    if args.library_builtin_model_path is not None:
+        generator_cfg.library_builtin_model_path = args.library_builtin_model_path
     generator = MoleculeBuilder(generator_cfg)
 
     # Second Parsing To Read Condition

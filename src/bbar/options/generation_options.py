@@ -7,10 +7,16 @@ class Denovo_Generation_ArgParser(argparse.ArgumentParser):
         self.formatter_class = argparse.ArgumentDefaultsHelpFormatter
 
         # Generator Parameters
-        required_args = self.add_argument_group("required")
-        required_args.add_argument(
+        generator_args = self.add_argument_group("generator")
+        generator_args.add_argument(
             "-g", "--generator_config", type=str, default="./config/generator.yaml", help="generator config file"
         )
+
+        # Overwrite Generator Parameters
+        overwrite_args = self.add_argument_group("overwrite generator config")
+        overwrite_args.add_argument("--model_path", type=str, help="model path")
+        overwrite_args.add_argument("--library_path", type=str, help="library path")
+        overwrite_args.add_argument("--library_builtin_model_path", type=str, help="builting model path")
 
         # Optional Parameters
         opt_args = self.add_argument_group("optional")

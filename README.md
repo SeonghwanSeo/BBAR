@@ -43,8 +43,8 @@ If you have any problems or need help with the code, please add an issue or cont
 The project can be installed by pip with `--find-links` arguments for torch-geometric package.
 
 ```bash
-pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cu121.html # CUDA
-pip install -e . --find-links https://data.pyg.org/whl/torch-2.1.2+cpu.html # CPU-only
+pip install -e . --find-links https://data.pyg.org/whl/torch-2.3.1+cu121.html # CUDA
+pip install -e . --find-links https://data.pyg.org/whl/torch-2.3.1+cpu.html # CPU-only
 ```
 
 

@@ -32,7 +32,7 @@ if __name__ == "__main__":
         default=1,
         help="Num Workers",
     )
-    parser.add_argument("--split_ratio", type=float, help="Train/Validation split ratio", required=True)
+    parser.add_argument("--split_ratio", type=float, help="Train/Validation split ratio", default=0.9)
     parser.add_argument(
         "--seed",
         default=1,

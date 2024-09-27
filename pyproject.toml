@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bbar"
-version = "2.0.1"
+version = "2.0.2"
 description = "PharmacoNet: Molecular generative model via retrosynthetically prepared chemical building block assembly"
 license = { text = "MIT" }
 authors = [{ name = "Seonghwan Seo", email = "shwan0106@kaist.ac.kr" }]
@@ -25,7 +25,7 @@ classifiers = [
 
 dependencies = [
     "numpy==1.26.4",
-    "torch==2.1.2",
+    "torch==2.3.1",
     "torch-geometric==2.4.0",
     "torch-scatter==2.1.2",
     "torch-sparse==0.6.18",
