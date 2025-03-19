@@ -1,5 +1,7 @@
 # Molecular generative model via retrosynthetically prepared chemical building block assembly
 
+Before using **BBAR**, also consider our new framework called **RxnFlow** which uses pre-constructed building block libraries such as Enamine REAL. [GitHub](https://github.com/SeonghwanSeo/RxnFlow) and [Paper](https://arxiv.org/abs/2410.04542).
+
 **Advanced Science** [[Paper](https://doi.org/10.1002/advs.202206674)] [[arXiv](https://arxiv.org/abs/2111.12907)]
 
 Official github of ***Molecular generative model via retrosynthetically prepared chemical building block assembly*** by Seonghwan Seo\*, Jaechang Lim, Woo Youn Kim. (*Advanced Science*)
